@@ -8,16 +8,14 @@
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Leaflet (No API Key Required) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Special+Elite&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            /* Default (Spring) */
-            --primary: #FFB7C5; /* Sakura Pink */
-            --secondary: #87A96B; /* Fresh Leaf Green */
+            --primary: #FFB7C5;
+            --secondary: #87A96B;
             --sage: var(--secondary);
             --sand: #FDFBF7;
             --wood: #2D241E;
@@ -25,6 +23,11 @@
             --navy-card: #0A1023;
             --moon: #F4D03F;
             --accent: var(--primary);
+            
+            /* Collapse Colors */
+            --rust: #8B4513;
+            --sepia: #704214;
+            --decay: #2F2F2F;
         }
         
         body {
@@ -36,7 +39,42 @@
             color: var(--wood);
         }
 
-        /* 地図の回転コンテナ */
+        /* 崩壊モード (Collapse Mode) Styles */
+        .collapse-mode {
+            background-color: var(--decay) !important;
+            color: #A09080 !important;
+            filter: sepia(0.5) contrast(1.2) brightness(0.8);
+            font-family: 'Special Elite', 'Zen Maru Gothic', serif;
+        }
+        .collapse-mode .card-bg {
+            background-color: rgba(40, 35, 30, 0.9) !important;
+            border: 2px solid var(--rust) !important;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8) !important;
+            position: relative;
+            overflow: hidden;
+        }
+        .collapse-mode .card-bg::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: url('https://www.transparenttextures.com/patterns/cracked-glass.png');
+            opacity: 0.1;
+            pointer-events: none;
+        }
+        .collapse-mode .bg-secondary { background-color: var(--rust) !important; }
+        .collapse-mode .text-secondary { color: var(--rust) !important; }
+
+        /* Glitch Animation */
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+        .glitch { animation: glitch 0.2s infinite; }
+
         #map-wrapper {
             width: 100%;
             height: 40vh;
@@ -48,91 +86,37 @@
             transition: border-color 0.6s;
             z-index: 10;
         }
-        
-        #map {
-            width: 100%;
-            height: 100%;
-            transition: transform 0.4s ease-out;
-        }
+        #map { width: 100%; height: 100%; transition: transform 0.4s ease-out; }
 
-        /* タブ切り替え */
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 深夜モード */
-        .midnight-mode {
-            background-color: var(--midnight) !important;
-            color: #FFFFFF !important;
-        }
-        .midnight-mode .card-bg {
-            background-color: var(--navy-card) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            color: #FFFFFF !important;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
-        }
-        .midnight-mode #map-wrapper { border-color: rgba(255, 255, 255, 0.1); }
-        .midnight-mode .nav-active { color: var(--moon) !important; }
-        .midnight-mode .text-moon { color: var(--moon) !important; }
-        .midnight-mode .bg-accent { background-color: var(--moon) !important; }
-        .midnight-mode .text-accent { color: var(--moon) !important; }
+        .midnight-mode { background-color: var(--midnight) !important; color: #FFFFFF !important; }
+        .midnight-mode .card-bg { background-color: var(--navy-card) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: #FFFFFF !important; }
         
-        /* 通常モードのアクセント */
-        .bg-accent { background-color: var(--accent); }
-        .text-accent { color: var(--accent); }
-        .bg-secondary { background-color: var(--secondary); }
-        .text-secondary { color: var(--secondary); }
-
-        /* ナビゲーションカード */
-        #nav-step-card {
-            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            transform: translateY(-150%);
-            z-index: 1000;
-        }
+        #nav-step-card { transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateY(-150%); z-index: 1000; }
         #nav-step-card.visible { transform: translateY(0); }
 
-        /* 親密度ゲージ */
-        .gauge-container {
-            height: 12px;
-            background: rgba(0,0,0,0.05);
-            border-radius: 6px;
-            overflow: hidden;
-        }
-        .midnight-mode .gauge-container { background: rgba(255,255,255,0.1); }
-        .gauge-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--secondary), var(--primary));
-            transition: width 1s ease-in-out;
-        }
-        .midnight-mode .gauge-fill { background: linear-gradient(90deg, var(--moon), #FFFFFF); }
+        .gauge-container { height: 12px; background: rgba(0,0,0,0.05); border-radius: 6px; overflow: hidden; }
+        .gauge-fill { height: 100%; background: linear-gradient(90deg, var(--secondary), var(--primary)); transition: width 1s ease-in-out; }
 
-        /* Leaflet Tile Filter for Dark Mode */
-        .midnight-mode .leaflet-tile-pane {
-            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-        }
+        .midnight-mode .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+        .collapse-mode .leaflet-tile-pane { filter: sepia(1) contrast(1.5) brightness(0.7) grayscale(0.5); }
 
-        .pulse { animation: pulse-animation 2s infinite; }
-        @keyframes pulse-animation {
-            0% { box-shadow: 0 0 0 0px rgba(0, 0, 0, 0.1); }
-            100% { box-shadow: 0 0 0 20px rgba(0, 0, 0, 0); }
-        }
+        .heart-pop { animation: heart-pop 1.5s ease-out infinite; }
+        @keyframes heart-pop { 0% { transform: scale(0) translateY(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: scale(1.5) translateY(-20px); opacity: 0; } }
 
-        /* 猫のアイコンアニメーション */
-        .cat-marker {
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-            transition: all 0.5s ease;
+        /* Collapse Button Style */
+        #collapse-btn {
+            background: linear-gradient(45deg, #2d2d2d, #1a1a1a);
+            border: 1px solid #444;
+            transition: all 0.3s;
         }
-        .heart-pop {
-            animation: heart-pop 1.5s ease-out infinite;
-        }
-        @keyframes heart-pop {
-            0% { transform: scale(0) translateY(0); opacity: 0; }
-            50% { opacity: 1; }
-            100% { transform: scale(1.5) translateY(-20px); opacity: 0; }
+        #collapse-btn.active {
+            background: var(--rust);
+            box-shadow: 0 0 15px var(--rust);
+            border-color: #ffaa00;
         }
     </style>
 
@@ -140,10 +124,7 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        midnight: '#02040A',
-                        moon: '#F4D03F',
-                    }
+                    colors: { midnight: '#02040A', moon: '#F4D03F', rust: '#8B4513' }
                 }
             }
         }
@@ -151,7 +132,32 @@
 </head>
 <body class="pb-32 min-h-screen">
 
-    <!-- ナビゲーション・オーバーレイ (上部) -->
+    <!-- 崩壊モード：ミッションオーバーレイ -->
+    <div id="mission-overlay" class="fixed inset-0 z-[3000] bg-black/90 hidden flex items-center justify-center p-8">
+        <div class="card-bg p-10 rounded-[3rem] w-full max-w-sm text-center space-y-8 border-4 border-rust">
+            <h2 id="mission-title" class="text-3xl font-bold text-rust glitch">物資を回収せよ</h2>
+            <div id="mission-content" class="text-lg opacity-80">
+                <!-- 動的に変更 -->
+            </div>
+            <button id="mission-action-btn" class="w-full py-5 bg-rust text-white rounded-2xl font-bold text-xl shadow-2xl active:scale-95 transition-transform">
+                回収する
+            </button>
+        </div>
+    </div>
+
+    <!-- 崩壊モード：ミッションクリア -->
+    <div id="clear-overlay" class="fixed inset-0 z-[4000] bg-black/95 hidden flex flex-col items-center justify-center p-8 text-center">
+        <div class="w-32 h-32 rounded-full bg-rust flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(139,69,19,0.5)]">
+            <i data-lucide="award" size="64" class="text-white"></i>
+        </div>
+        <h2 class="text-4xl font-bold text-white mb-4 glitch">MISSION CLEAR</h2>
+        <p id="clear-title" class="text-xl text-rust font-bold mb-10 tracking-widest">荒廃した街の生存者</p>
+        <button onclick="location.reload()" class="px-12 py-5 bg-white text-black rounded-full font-bold text-xl active:scale-95 transition-transform">
+            日常へ戻る
+        </button>
+    </div>
+
+    <!-- ナビゲーション・オーバーレイ -->
     <div id="nav-step-card" class="fixed top-4 left-4 right-4 p-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 bg-white card-bg border-2 border-black/5">
         <div id="nav-arrow-box" class="w-20 h-20 rounded-3xl bg-secondary text-white flex items-center justify-center shadow-xl">
             <i data-lucide="arrow-up" size="48" id="nav-arrow-icon"></i>
@@ -193,15 +199,14 @@
                 <h1 class="text-xl font-bold tracking-tight leading-none">さんぽパレット</h1>
                 <p id="season-label" class="text-[10px] uppercase tracking-[0.2em] opacity-40 mt-1">Loading Season...</p>
             </div>
-            <div id="midnight-cat" class="hidden text-moon ml-2 animate-bounce">
-                <i data-lucide="cat" size="24"></i>
-            </div>
         </div>
-        <div class="flex items-center gap-3">
-            <button onclick="getLocation()" class="p-3 rounded-full hover:bg-black/5 transition-colors">
-                <i data-lucide="refresh-cw" size="22" class="opacity-50"></i>
+        <div class="flex items-center gap-2">
+            <!-- 崩壊モードボタン -->
+            <button id="collapse-btn" class="p-4 rounded-full text-white shadow-lg relative overflow-hidden">
+                <i data-lucide="skull" size="22"></i>
+                <div id="collapse-progress" class="absolute bottom-0 left-0 h-1 bg-white/50 transition-all duration-100" style="width: 0%"></div>
             </button>
-            <button onclick="toggleMidnight()" class="p-4 rounded-full bg-secondary text-white shadow-lg hover:scale-110 active:scale-90 transition-all" id="mode-btn">
+            <button onclick="toggleMidnight()" class="p-4 rounded-full bg-secondary text-white shadow-lg" id="mode-btn">
                 <i data-lucide="moon" size="22"></i>
             </button>
         </div>
@@ -211,8 +216,6 @@
         
         <!-- タブ: プランナー -->
         <section id="tab-planner" class="tab-content active space-y-8">
-            
-            <!-- 時間選択セクション -->
             <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg" id="time-card">
                 <div class="flex items-center justify-between mb-8">
                     <div class="flex items-center gap-4">
@@ -226,16 +229,10 @@
                     </div>
                 </div>
                 <input type="range" min="30" max="120" step="15" value="30" id="time-range" class="w-full cursor-pointer">
-                <div class="flex justify-between mt-4 text-[11px] font-bold opacity-30 uppercase tracking-[0.2em]">
-                    <span>30 min</span>
-                    <span>120 min</span>
-                </div>
             </div>
 
-            <!-- 地図セクション -->
             <div id="map-wrapper">
                 <div id="map"></div>
-                <!-- 中心マーカー (自車位置) -->
                 <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] pointer-events-none">
                     <div class="relative">
                         <div class="w-10 h-10 bg-blue-500/20 rounded-full animate-ping absolute inset-0"></div>
@@ -246,7 +243,6 @@
                 </div>
             </div>
 
-            <!-- コース提案セクション -->
             <div class="p-10 rounded-[3rem] bg-white shadow-sm card-bg" id="planner-card">
                 <div id="route-info" class="space-y-8">
                     <div class="flex justify-between items-start gap-4">
@@ -258,46 +254,22 @@
                                 Safety Route Active
                             </div>
                         </div>
-                        <button onclick="startFullRoute()" class="w-20 h-20 rounded-[2rem] bg-secondary text-white shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center" id="start-route-btn">
+                        <button onclick="startFullRoute()" class="w-20 h-20 rounded-[2rem] bg-secondary text-white shadow-2xl flex items-center justify-center" id="start-route-btn">
                             <i data-lucide="play" size="36" class="fill-current ml-1"></i>
                         </button>
                     </div>
-                    
-                    <div class="space-y-6 relative">
-                        <div class="absolute left-7 top-6 bottom-6 w-1 bg-secondary/10 rounded-full"></div>
-                        <div id="route-list" class="space-y-8"></div>
-                    </div>
+                    <div id="route-list" class="space-y-8"></div>
                 </div>
             </div>
         </section>
 
         <!-- タブ: ラリー -->
         <section id="tab-rally" class="tab-content space-y-6">
-            <div class="flex items-center justify-between mb-2">
-                <h2 class="text-2xl font-bold">スタンプラリー</h2>
-                <div class="flex items-center gap-2 px-5 py-2 rounded-full bg-secondary/10 text-secondary font-bold">
-                    <i data-lucide="award" size="18"></i>
-                    <span id="rally-count">0 達成</span>
-                </div>
-            </div>
-
-            <div id="custom-route-start-box" class="hidden p-6 rounded-[2.5rem] bg-secondary text-white shadow-xl flex items-center justify-between animate-bounce">
-                <div>
-                    <p class="text-xs font-bold uppercase tracking-widest opacity-80">カスタムルート作成中</p>
-                    <p class="text-lg font-bold" id="custom-route-summary">0スポット 選択中</p>
-                </div>
-                <button onclick="switchTab('planner'); startFullRoute();" class="px-8 py-4 bg-white text-secondary rounded-2xl font-bold shadow-lg active:scale-95 transition-all flex items-center gap-2">
-                    <i data-lucide="play" size="18" class="fill-current"></i>
-                    出発
-                </button>
-            </div>
-
             <div id="poi-list" class="space-y-4"></div>
         </section>
 
-        <!-- タブ: マイページ (称号 & 黒猫) -->
+        <!-- タブ: マイページ -->
         <section id="tab-trophy" class="tab-content space-y-8">
-            <!-- 黒猫親密度カード -->
             <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-6">
                 <div class="flex items-center gap-6">
                     <div class="w-24 h-24 rounded-full bg-midnight flex items-center justify-center relative border-4 border-accent/20">
@@ -311,25 +283,20 @@
                         <p class="text-sm opacity-60" id="cat-level-desc">まだ遠くから見守っています...</p>
                     </div>
                 </div>
-                <div class="space-y-2">
-                    <div class="flex justify-between text-xs font-bold uppercase tracking-widest opacity-40">
-                        <span>親密度 (累計距離)</span>
-                        <span id="total-dist-display">0.0 km</span>
-                    </div>
-                    <div class="gauge-container">
-                        <div id="cat-gauge" class="gauge-fill" style="width: 0%"></div>
-                    </div>
+                <div class="gauge-container">
+                    <div id="cat-gauge" class="gauge-fill" style="width: 0%"></div>
                 </div>
             </div>
 
-            <!-- 季節の称号 -->
-            <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-6">
-                <h3 class="text-xl font-bold flex items-center gap-2">
-                    <i data-lucide="sparkles" class="text-accent"></i>
-                    季節の限定称号
-                </h3>
-                <div class="grid grid-cols-1 gap-4" id="seasonal-titles-list">
-                    <!-- 称号がここに並ぶ -->
+            <!-- 崩壊モード実績 -->
+            <div id="collapse-stats" class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-4 hidden">
+                <h3 class="text-xl font-bold text-rust">崩壊した街の記録</h3>
+                <div class="flex justify-between items-center">
+                    <span class="opacity-60">ミッションクリア回数</span>
+                    <span id="collapse-clear-count" class="text-2xl font-bold text-rust">0</span>
+                </div>
+                <div id="collapse-title-display" class="p-4 bg-rust/10 rounded-xl text-rust font-bold text-center">
+                    生存者
                 </div>
             </div>
         </section>
@@ -338,31 +305,28 @@
     <!-- ボトムナビ -->
     <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 p-6 border-t bg-white/90 backdrop-blur-2xl z-[100] card-bg">
         <div class="max-w-2xl mx-auto flex justify-around items-center">
-            <button onclick="switchTab('planner')" class="nav-btn flex flex-col items-center gap-2 text-secondary nav-active transition-all" id="btn-planner">
-                <div class="w-14 h-10 rounded-2xl flex items-center justify-center bg-secondary/10" id="nav-icon-bg-planner">
-                    <i data-lucide="navigation" size="26"></i>
-                </div>
-                <span class="text-[11px] font-bold tracking-wider">プラン</span>
+            <button onclick="switchTab('planner')" class="nav-btn flex flex-col items-center gap-2 text-secondary" id="btn-planner">
+                <i data-lucide="navigation" size="26"></i>
+                <span class="text-[11px] font-bold">プラン</span>
             </button>
-            <button onclick="switchTab('rally')" class="nav-btn flex flex-col items-center gap-2 opacity-40 transition-all" id="btn-rally">
-                <div class="w-14 h-10 rounded-2xl flex items-center justify-center" id="nav-icon-bg-rally">
-                    <i data-lucide="map-pin" size="26"></i>
-                </div>
-                <span class="text-[11px] font-bold tracking-wider">ラリー</span>
+            <button onclick="switchTab('rally')" class="nav-btn flex flex-col items-center gap-2 opacity-40" id="btn-rally">
+                <i data-lucide="map-pin" size="26"></i>
+                <span class="text-[11px] font-bold">ラリー</span>
             </button>
-            <button onclick="switchTab('trophy')" class="nav-btn flex flex-col items-center gap-2 opacity-40 transition-all" id="btn-trophy">
-                <div class="w-14 h-10 rounded-2xl flex items-center justify-center" id="nav-icon-bg-trophy">
-                    <i data-lucide="cat" size="26"></i>
-                </div>
-                <span class="text-[11px] font-bold tracking-wider">マイページ</span>
+            <button onclick="switchTab('trophy')" class="nav-btn flex flex-col items-center gap-2 opacity-40" id="btn-trophy">
+                <i data-lucide="cat" size="26"></i>
+                <span class="text-[11px] font-bold">マイページ</span>
             </button>
         </div>
     </nav>
+
+    <audio id="collapse-hum" loop src="https://www.soundjay.com/mechanical/sounds/mechanical-hum-1.mp3"></audio>
 
     <script>
         // --- State ---
         let state = {
             isMidnight: false,
+            isCollapseMode: false,
             activeTab: 'planner',
             plannedTime: 30,
             userLocation: null,
@@ -374,6 +338,7 @@
             stamps: JSON.parse(localStorage.getItem('sanpo-stamps') || '[]'),
             totalDistance: parseFloat(localStorage.getItem('sanpo-total-dist') || '0'),
             seasonalStats: JSON.parse(localStorage.getItem('sanpo-seasonal') || '{"spring":0,"summer":0,"autumn":0,"winter":0}'),
+            collapseClears: parseInt(localStorage.getItem('sanpo-collapse-clears') || '0'),
             map: null,
             routeLine: null,
             isNavigating: false,
@@ -383,7 +348,13 @@
             currentRouteSteps: [],
             poiMarkers: [],
             catMarker: null,
-            lastLocation: null
+            lastLocation: null,
+            
+            // Collapse Mission State
+            missionStep: 0, // 0: none, 1: scavenge, 2: cat, 3: return
+            offPathStartTime: null,
+            hasResources: false,
+            catFed: false
         };
 
         const SEASONS = [
@@ -403,6 +374,7 @@
             initMap();
             getLocation();
             setupOrientation();
+            setupCollapseTrigger();
             
             document.getElementById('time-range').addEventListener('input', (e) => {
                 state.plannedTime = parseInt(e.target.value);
@@ -416,24 +388,69 @@
             document.getElementById('retry-btn').onclick = getLocation;
         }
 
+        function setupCollapseTrigger() {
+            const btn = document.getElementById('collapse-btn');
+            const progress = document.getElementById('collapse-progress');
+            let timer;
+            let startTime;
+
+            const start = () => {
+                startTime = Date.now();
+                progress.style.width = '0%';
+                timer = setInterval(() => {
+                    const elapsed = Date.now() - startTime;
+                    const p = Math.min((elapsed / 2000) * 100, 100);
+                    progress.style.width = `${p}%`;
+                    if (elapsed >= 2000) {
+                        clearInterval(timer);
+                        toggleCollapseMode();
+                        progress.style.width = '0%';
+                    }
+                }, 50);
+            };
+
+            const end = () => {
+                clearInterval(timer);
+                progress.style.width = '0%';
+            };
+
+            btn.addEventListener('mousedown', start);
+            btn.addEventListener('touchstart', start);
+            btn.addEventListener('mouseup', end);
+            btn.addEventListener('touchend', end);
+            btn.addEventListener('mouseleave', end);
+        }
+
+        function toggleCollapseMode() {
+            state.isCollapseMode = !state.isCollapseMode;
+            const hum = document.getElementById('collapse-hum');
+            
+            if (state.isCollapseMode) {
+                document.body.classList.add('collapse-mode');
+                document.getElementById('collapse-btn').classList.add('active');
+                hum.play();
+                speak("崩壊モードを起動しました。物資を回収し、白い猫を救ってください。");
+                state.isMidnight = false; // Override midnight
+            } else {
+                document.body.classList.remove('collapse-mode');
+                document.getElementById('collapse-btn').classList.remove('active');
+                hum.pause();
+                stopNavigation();
+            }
+            calculateRoute();
+            updateUI();
+        }
+
         function applySeasonalUI() {
             const month = new Date().getMonth();
             const season = SEASONS.find(s => s.months.includes(month));
-            
             document.documentElement.style.setProperty('--primary', season.colors.p);
             document.documentElement.style.setProperty('--secondary', season.colors.s);
             document.getElementById('season-label').innerText = `Sanpo Palette | ${season.label}`;
         }
 
         function initMap() {
-            state.map = L.map('map', { 
-                zoomControl: false, 
-                attributionControl: false, 
-                dragging: true,
-                touchZoom: true, 
-                scrollWheelZoom: true 
-            }).setView([35.6895, 139.6917], 17);
-            
+            state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([35.6895, 139.6917], 17);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
         }
 
@@ -457,71 +474,44 @@
         }
 
         function getLocation() {
-            const overlay = document.getElementById('geo-overlay');
-            const retryBtn = document.getElementById('retry-btn');
-
             navigator.geolocation.watchPosition(pos => {
                 const current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                
-                // Track distance if navigating
                 if (state.isNavigating && state.lastLocation) {
                     const d = getDistance(state.lastLocation.lat, state.lastLocation.lng, current.lat, current.lng);
-                    if (d > 0.005) { // 5m以上移動
+                    if (d > 0.005) {
                         state.totalDistance += d;
                         localStorage.setItem('sanpo-total-dist', state.totalDistance.toFixed(3));
                         state.lastLocation = current;
                     }
-                } else {
-                    state.lastLocation = current;
-                }
-
+                } else { state.lastLocation = current; }
                 state.userLocation = current;
                 if (!state.startLocation) state.startLocation = state.userLocation;
-                
-                overlay.classList.add('hidden');
                 if (state.isNavigating) {
                     state.map.setView([state.userLocation.lat, state.userLocation.lng]);
                     updateNavigation();
-                } else if (state.pois.length === 0) {
-                    state.map.setView([state.userLocation.lat, state.userLocation.lng]);
                 }
-                
                 if (state.pois.length === 0) fetchPOIs();
                 updateCatMarker();
-            }, err => {
-                retryBtn.classList.remove('hidden');
-            }, { enableHighAccuracy: true });
-        }
-
-        function updateCatMarker() {
-            if (!state.map || !state.userLocation) return;
-            
-            const level = getCatLevel();
-            
-            if (level === 3) {
-                // Level 3: Cat follows user
-                const catPos = [state.userLocation.lat + 0.0001, state.userLocation.lng + 0.0001];
-                if (!state.catMarker) {
-                    const catIcon = L.divIcon({
-                        className: 'cat-marker',
-                        html: '<div class="relative"><i data-lucide="cat" class="text-midnight fill-current"></i><div class="absolute -top-4 -right-2 text-red-500 heart-pop"><i data-lucide="heart" size="12" class="fill-current"></i></div></div>',
-                        iconSize: [24, 24]
-                    });
-                    state.catMarker = L.marker(catPos, { icon: catIcon }).addTo(state.map);
-                    lucide.createIcons();
-                } else {
-                    state.catMarker.setLatLng(catPos);
-                }
-            } else if (state.catMarker) {
-                state.map.removeLayer(state.catMarker);
-                state.catMarker = null;
-            }
+            }, null, { enableHighAccuracy: true });
         }
 
         function getCatLevel() {
             if (state.totalDistance >= 15) return 3;
             if (state.totalDistance >= 5) return 2;
             return 1;
+        }
+
+        function updateCatMarker() {
+            if (!state.map || !state.userLocation) return;
+            const level = getCatLevel();
+            if (level === 3 && !state.isCollapseMode) {
+                const catPos = [state.userLocation.lat + 0.0001, state.userLocation.lng + 0.0001];
+                if (!state.catMarker) {
+                    const catIcon = L.divIcon({ className: 'cat-marker', html: '<div class="relative"><i data-lucide="cat" class="text-midnight fill-current"></i><div class="absolute -top-4 -right-2 text-red-500 heart-pop"><i data-lucide="heart" size="12" class="fill-current"></i></div></div>', iconSize: [24, 24] });
+                    state.catMarker = L.marker(catPos, { icon: catIcon }).addTo(state.map);
+                    lucide.createIcons();
+                } else { state.catMarker.setLatLng(catPos); }
+            } else if (state.catMarker) { state.map.removeLayer(state.catMarker); state.catMarker = null; }
         }
 
         async function fetchPOIs() {
@@ -531,14 +521,10 @@
                 const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
                 const data = await res.json();
                 state.pois = data.elements.filter(el => el.tags && el.tags.name).map(el => ({
-                    id: el.id, 
-                    name: el.tags.name, 
-                    lat: el.lat || el.center.lat, 
-                    lng: el.lon || el.center.lon,
+                    id: el.id, name: el.tags.name, lat: el.lat || el.center.lat, lng: el.lon || el.center.lon,
                     category: el.tags.amenity === 'place_of_worship' ? 'shrine' : el.tags.leisure === 'park' ? 'park' : 'historic',
                     distance: getDistance(lat, lng, el.lat || el.center.lat, el.lon || el.center.lon)
                 })).sort((a, b) => a.distance - b.distance);
-                
                 calculateRoute();
                 updateUI();
             } catch (e) { console.error(e); }
@@ -547,20 +533,22 @@
         function calculateRoute() {
             if (state.pois.length === 0 || !state.startLocation) return;
             let loopPois = [];
-            let estimatedTime = state.plannedTime;
-
-            if (state.isCustomRoute && state.selectedCustomPois.length > 0) {
+            
+            if (state.isCollapseMode) {
+                // Collapse Mode: Exactly 2 spots for ~60 min
+                loopPois = [state.pois[0], state.pois[Math.min(state.pois.length-1, 3)]];
+                state.plannedTime = 60;
+                state.missionStep = 1;
+                state.hasResources = false;
+                state.catFed = false;
+            } else if (state.isCustomRoute && state.selectedCustomPois.length > 0) {
                 loopPois = state.pois.filter(p => state.selectedCustomPois.includes(p.id));
                 loopPois.sort((a, b) => a.distance - b.distance);
                 let totalDist = 0;
                 let prev = state.startLocation;
-                loopPois.forEach(p => {
-                    totalDist += getDistance(prev.lat, prev.lng, p.lat, p.lng);
-                    prev = p;
-                });
+                loopPois.forEach(p => { totalDist += getDistance(prev.lat, prev.lng, p.lat, p.lng); prev = p; });
                 totalDist += getDistance(prev.lat, prev.lng, state.startLocation.lat, state.startLocation.lng);
-                estimatedTime = Math.round((totalDist / WALKING_SPEED_KMH) * 60 + (loopPois.length * 10));
-                state.plannedTime = estimatedTime;
+                state.plannedTime = Math.round((totalDist / WALKING_SPEED_KMH) * 60 + (loopPois.length * 10));
             } else {
                 const totalDistanceKm = (state.plannedTime / 60) * WALKING_SPEED_KMH;
                 const targetRadius = totalDistanceKm / 3.5;
@@ -570,11 +558,11 @@
                     loopPois.push(candidates[0]);
                     for (let i = 1; i < count; i++) {
                         let bestNext = null;
-                        let maxDistFromLast = -1;
+                        let maxD = -1;
                         candidates.forEach(c => {
                             if (loopPois.includes(c)) return;
                             let d = getDistance(loopPois[loopPois.length-1].lat, loopPois[loopPois.length-1].lng, c.lat, c.lng);
-                            if (d > maxDistFromLast) { maxDistFromLast = d; bestNext = c; }
+                            if (d > maxD) { maxD = d; bestNext = c; }
                         });
                         if (bestNext) loopPois.push(bestNext);
                     }
@@ -583,8 +571,9 @@
             state.suggestedRoute = [...loopPois, { ...state.startLocation, name: "スタート地点 (ゴール)", isGoal: true }];
             if (state.poiMarkers) state.poiMarkers.forEach(m => state.map.removeLayer(m));
             state.poiMarkers = state.suggestedRoute.map((p, i) => {
-                const color = p.isGoal ? '#3b82f6' : (state.isMidnight ? '#F4D03F' : 'var(--secondary)');
-                return L.circleMarker([p.lat, p.lng], { radius: 10, fillColor: color, color: '#fff', weight: 3, fillOpacity: 0.9 }).addTo(state.map).bindPopup(`<b>${i+1}. ${p.name}</b>`);
+                let color = p.isGoal ? '#3b82f6' : (state.isMidnight ? '#F4D03F' : 'var(--secondary)');
+                if (state.isCollapseMode) color = '#8B4513';
+                return L.circleMarker([p.lat, p.lng], { radius: 10, fillColor: color, color: '#fff', weight: 3, fillOpacity: 0.9 }).addTo(state.map);
             });
         }
 
@@ -593,25 +582,35 @@
             state.isNavigating = true;
             state.currentStepIndex = 0;
             state.lastAnnouncedStep = -1;
+            state.offPathStartTime = null;
             await fetchNextLeg();
             document.getElementById('nav-step-card').classList.add('visible');
             updateUI();
-            const modeText = state.isMidnight ? "安全な大通り優先ルートで" : "景色の良いルートで";
-            speak(`${state.isCustomRoute ? "カスタム" : "おすすめ"}ルートを開始します。${modeText}、${state.suggestedRoute[0].name}へのナビを開始します！`);
+            if (state.isCollapseMode) speak("ミッション開始。ルートを外れることは許されません。");
+            else speak(`${state.isCustomRoute ? "カスタム" : "おすすめ"}ルートを開始します。`);
         }
 
         async function fetchNextLeg() {
             const start = state.currentStepIndex === 0 ? state.userLocation : state.suggestedRoute[state.currentStepIndex - 1];
             const end = state.suggestedRoute[state.currentStepIndex];
-            const profile = state.isMidnight ? 'driving' : 'walking';
-            const url = `https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
+            
+            // Collapse Mode: Force roundabout by adding a waypoint
+            let coords = `${start.lng},${start.lat};${end.lng},${end.lat}`;
+            if (state.isCollapseMode) {
+                const midLat = (start.lat + end.lat) / 2 + 0.002;
+                const midLng = (start.lng + end.lng) / 2 + 0.002;
+                coords = `${start.lng},${start.lat};${midLng},${midLat};${end.lng},${end.lat}`;
+            }
+
+            const profile = (state.isMidnight && !state.isCollapseMode) ? 'driving' : 'walking';
+            const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&steps=true`;
             try {
                 const res = await fetch(url);
                 const data = await res.json();
                 const route = data.routes[0];
                 if (state.routeLine) state.map.removeLayer(state.routeLine);
-                state.routeLine = L.geoJSON(route.geometry, { style: { color: state.isMidnight ? '#F4D03F' : '#3b82f6', weight: 12, opacity: 0.8 } }).addTo(state.map);
-                state.currentRouteSteps = route.legs[0].steps;
+                state.routeLine = L.geoJSON(route.geometry, { style: { color: state.isCollapseMode ? '#8B4513' : (state.isMidnight ? '#F4D03F' : '#3b82f6'), weight: 12, opacity: 0.8 } }).addTo(state.map);
+                state.currentRouteSteps = route.legs.flatMap(l => l.steps);
             } catch (e) { console.error(e); }
         }
 
@@ -620,77 +619,83 @@
             const nextStep = state.currentRouteSteps[0];
             const stepCoord = { lat: nextStep.maneuver.location[1], lng: nextStep.maneuver.location[0] };
             const dist = Math.round(getDistance(state.userLocation.lat, state.userLocation.lng, stepCoord.lat, stepCoord.lng) * 1000);
-            if (dist > 150 && state.currentRouteSteps.length > 0) {
-                speak("ルートから外れました。再検索しています。");
-                fetchNextLeg();
-                return;
-            }
+            
+            // Forbidden Path Logic
+            if (dist > 150) {
+                if (state.isCollapseMode) {
+                    if (!state.offPathStartTime) state.offPathStartTime = Date.now();
+                    const elapsed = (Date.now() - state.offPathStartTime) / 1000;
+                    if (elapsed > 60) {
+                        speak("ミッション失敗。帰還します。");
+                        toggleCollapseMode();
+                        return;
+                    }
+                } else {
+                    speak("ルートから外れました。再検索しています。");
+                    fetchNextLeg();
+                    return;
+                }
+            } else { state.offPathStartTime = null; }
+
             document.getElementById('nav-dist').innerText = `${dist}m`;
-            let instruction = nextStep.maneuver.type === 'arrive' ? "まもなく目的地です" : `${nextStep.name || '道'}を${translateManeuver(nextStep.maneuver.modifier)}`;
-            document.getElementById('nav-instruction').innerText = instruction;
+            document.getElementById('nav-instruction').innerText = nextStep.maneuver.instruction;
             updateNavIcon(nextStep.maneuver.modifier);
-            const stepId = nextStep.maneuver.location.toString();
-            if (dist < 15 && state.lastAnnouncedStep !== stepId) {
-                speak(`まもなく${instruction}です！`);
-                state.lastAnnouncedStep = stepId;
+            
+            if (dist < 15) {
                 state.currentRouteSteps.shift();
                 if (nextStep.maneuver.type === 'arrive') handleArrive();
             }
         }
 
-        async function handleArrive() {
-            const arrivedPoi = state.suggestedRoute[state.currentStepIndex];
-            speak(`${arrivedPoi.name}に到着しました！`);
-            
-            if (getCatLevel() >= 2) speak("ニャー！"); // Meow at Lvl 2+
-
-            if (!arrivedPoi.isGoal && !state.stamps.includes(arrivedPoi.id)) {
-                toggleStamp(arrivedPoi.id);
-                // Update seasonal stats
-                const month = new Date().getMonth();
-                const season = SEASONS.find(s => s.months.includes(month));
-                state.seasonalStats[season.id]++;
-                localStorage.setItem('sanpo-seasonal', JSON.stringify(state.seasonalStats));
-            }
-
-            if (state.currentStepIndex < state.suggestedRoute.length - 1) {
-                state.currentStepIndex++;
-                speak(`次は${state.suggestedRoute[state.currentStepIndex].name}に向かいます。`);
-                await fetchNextLeg();
+        function handleArrive() {
+            if (state.isCollapseMode) {
+                if (state.missionStep === 1) {
+                    showMissionPopup("物資を回収せよ", "廃墟の中に食料と武器を見つけた。", "回収する", () => {
+                        state.hasResources = true;
+                        state.missionStep = 2;
+                        speak("物資を回収しました。白い猫を探してください。");
+                        nextLeg();
+                    });
+                } else if (state.missionStep === 2) {
+                    showMissionPopup("白い猫を発見", "お腹を空かせた白い猫がこちらを見ている。", "物資を分ける", () => {
+                        state.catFed = true;
+                        state.missionStep = 3;
+                        speak("猫は満足したようです。拠点へ戻りましょう。");
+                        nextLeg();
+                    });
+                } else if (state.missionStep === 3) {
+                    showClearScreen();
+                }
             } else {
-                speak("お疲れ様でした！スタート地点に戻りました。");
-                stopNavigation();
+                const arrivedPoi = state.suggestedRoute[state.currentStepIndex];
+                if (!arrivedPoi.isGoal) toggleStamp(arrivedPoi.id);
+                if (state.currentStepIndex < state.suggestedRoute.length - 1) {
+                    state.currentStepIndex++;
+                    nextLeg();
+                } else { stopNavigation(); }
             }
         }
 
-        function toggleCustomPoi(id) {
-            if (state.selectedCustomPois.includes(id)) {
-                state.selectedCustomPois = state.selectedCustomPois.filter(sid => sid !== id);
-            } else {
-                state.selectedCustomPois.push(id);
-            }
-            state.isCustomRoute = state.selectedCustomPois.length > 0;
-            calculateRoute();
-            updateUI();
+        function nextLeg() { fetchNextLeg(); updateUI(); }
+
+        function showMissionPopup(title, content, btnText, callback) {
+            const overlay = document.getElementById('mission-overlay');
+            document.getElementById('mission-title').innerText = title;
+            document.getElementById('mission-content').innerText = content;
+            const btn = document.getElementById('mission-action-btn');
+            btn.innerText = btnText;
+            overlay.classList.remove('hidden');
+            btn.onclick = () => { overlay.classList.add('hidden'); callback(); };
         }
 
-        function translateManeuver(mod) {
-            const dict = { left: '左折', right: '右折', 'slight left': '左方向', 'slight right': '右方向', straight: '直進' };
-            return dict[mod] || '進みます';
-        }
-
-        function updateNavIcon(mod) {
-            const icon = document.getElementById('nav-arrow-icon');
-            const icons = { left: 'arrow-up-left', right: 'arrow-up-right', straight: 'arrow-up' };
-            icon.setAttribute('data-lucide', icons[mod] || 'arrow-up');
-            lucide.createIcons();
-        }
-
-        function stopNavigation() {
-            state.isNavigating = false;
-            document.getElementById('nav-step-card').classList.remove('visible');
-            if (state.routeLine) state.map.removeLayer(state.routeLine);
-            updateUI();
+        function showClearScreen() {
+            state.collapseClears++;
+            localStorage.setItem('sanpo-collapse-clears', state.collapseClears);
+            const overlay = document.getElementById('clear-overlay');
+            const title = state.collapseClears >= 5 ? "白猫の救世主" : "荒廃した街の生存者";
+            document.getElementById('clear-title').innerText = title;
+            overlay.classList.remove('hidden');
+            speak("ミッションコンプリート。あなたは生き延びました。");
         }
 
         function updateUI() {
@@ -733,90 +738,47 @@
                     <div class="w-14 h-14 rounded-2xl flex items-center justify-center bg-secondary/10 text-secondary font-bold text-xl">${i+1}</div>
                     <div class="flex-1">
                         <h5 class="font-bold text-xl">${p.name}</h5>
-                        <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.isGoal ? 'ゴール' : CATEGORY_LABELS[p.category]}</p>
+                        <p class="text-xs opacity-50 uppercase tracking-widest">${p.isGoal ? 'ゴール' : CATEGORY_LABELS[p.category]}</p>
                     </div>
                 `;
                 routeList.appendChild(div);
             });
 
             if (state.suggestedRoute.length > 0) {
-                const routeTitle = state.isCustomRoute ? "カスタム周回コース" : `${state.plannedTime}分の周回コース`;
-                document.getElementById('route-name').innerText = routeTitle;
-                document.getElementById('route-meta').innerText = `${state.suggestedRoute.length - 1}箇所のスポットを巡って戻ります (約${state.plannedTime}分)`;
+                document.getElementById('route-name').innerText = state.isCollapseMode ? "崩壊した街の探索" : (state.isCustomRoute ? "カスタム周回" : `${state.plannedTime}分の周回`);
             }
 
             // Rally List
             const poiList = document.getElementById('poi-list');
-            const customRouteBox = document.getElementById('custom-route-start-box');
-            const customRouteSummary = document.getElementById('custom-route-summary');
             poiList.innerHTML = '';
-            if (state.selectedCustomPois.length > 0) {
-                customRouteBox.classList.remove('hidden');
-                customRouteSummary.innerText = `${state.selectedCustomPois.length}スポット 選択中 (約${state.plannedTime}分)`;
-            } else {
-                customRouteBox.classList.add('hidden');
-            }
-
             state.pois.forEach(p => {
                 const isStamped = state.stamps.includes(p.id);
                 const isSelected = state.selectedCustomPois.includes(p.id);
                 const div = document.createElement('div');
-                div.className = `p-6 rounded-[2.5rem] flex justify-between items-center card-bg transition-all cursor-pointer ${state.isMidnight ? 'bg-navy-card' : 'bg-white'} ${isSelected ? 'ring-4 ring-secondary' : ''}`;
+                div.className = `p-6 rounded-[2.5rem] flex justify-between items-center card-bg transition-all cursor-pointer ${isSelected ? 'ring-4 ring-secondary' : ''}`;
                 div.onclick = () => toggleCustomPoi(p.id);
                 div.innerHTML = `
                     <div class="flex items-center gap-5">
-                        <div class="w-16 h-16 rounded-3xl flex items-center justify-center ${isStamped ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-100 text-gray-400'}">
+                        <div class="w-16 h-16 rounded-3xl flex items-center justify-center ${isStamped ? 'bg-secondary text-white' : 'bg-gray-100 text-gray-400'}">
                             <i data-lucide="${isStamped ? 'check' : 'map-pin'}" size="28"></i>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-xl">${p.name}</h4>
-                            <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.distance.toFixed(2)}km</p>
-                        </div>
-                    </div>
-                    <div class="flex flex-col items-end gap-2">
-                        <span class="text-[10px] font-bold uppercase tracking-widest ${isSelected ? 'text-secondary' : 'opacity-30'}">${isSelected ? '選択中' : 'タップで選択'}</span>
-                        <button onclick="event.stopPropagation(); toggleStamp(${p.id})" class="px-6 py-2 rounded-xl text-[10px] font-bold transition-all ${isStamped ? 'opacity-30' : 'bg-secondary text-white shadow-lg shadow-secondary/20 active:scale-95'}">${isStamped ? '済' : 'スタンプ'}</button>
+                        <div><h4 class="font-bold text-xl">${p.name}</h4><p class="text-xs opacity-50">${p.distance.toFixed(2)}km</p></div>
                     </div>
                 `;
                 poiList.appendChild(div);
             });
-            document.getElementById('rally-count').innerText = `${state.stamps.length} 達成`;
 
-            // Cat Intimacy UI
+            // Cat Intimacy & Collapse Stats
             const level = getCatLevel();
-            const levelNames = ["", "黒猫の影", "人懐っこい黒猫", "旅の相棒"];
-            const levelDescs = ["", "まだ遠くから見守っています...", "時々足元に寄ってくるようになりました", "あなたの後ろをトコトコ付いてきます！"];
-            document.getElementById('cat-level-name').innerText = levelNames[level];
-            document.getElementById('cat-level-desc').innerText = levelDescs[level];
-            document.getElementById('total-dist-display').innerText = `${state.totalDistance.toFixed(1)} km`;
+            document.getElementById('cat-level-name').innerText = ["", "黒猫の影", "人懐っこい黒猫", "旅の相棒"][level];
             document.getElementById('cat-gauge').style.width = `${Math.min((state.totalDistance / 15) * 100, 100)}%`;
             document.getElementById('cat-heart').classList.toggle('hidden', level < 3);
-            document.getElementById('cat-status-icon').className = `text-white ${level >= 2 ? 'animate-bounce' : ''}`;
-
-            // Seasonal Titles
-            const titlesList = document.getElementById('seasonal-titles-list');
-            titlesList.innerHTML = '';
-            SEASONS.forEach(s => {
-                const count = state.seasonalStats[s.id];
-                const isUnlocked = count >= 3;
-                const div = document.createElement('div');
-                div.className = `p-5 rounded-2xl flex items-center justify-between ${isUnlocked ? 'bg-accent/10 border-2 border-accent' : 'bg-gray-100 opacity-40'}`;
-                div.innerHTML = `
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-accent">
-                            <i data-lucide="${isUnlocked ? 'award' : 'lock'}"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs font-bold uppercase tracking-widest">${s.name}の称号</p>
-                            <p class="text-sm font-bold">${isUnlocked ? s.title : '??? (3スポット訪問で解放)'}</p>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[10px] font-bold opacity-40">${count}/3</p>
-                    </div>
-                `;
-                titlesList.appendChild(div);
-            });
+            
+            if (state.collapseClears > 0) {
+                document.getElementById('collapse-stats').classList.remove('hidden');
+                document.getElementById('collapse-clear-count').innerText = state.collapseClears;
+                document.getElementById('collapse-title-display').innerText = state.collapseClears >= 5 ? "白猫の救世主" : "荒廃した街の生存者";
+            }
 
             lucide.createIcons();
         }
@@ -830,37 +792,12 @@
             updateUI();
         }
 
-        function toggleMidnight() { 
-            state.isMidnight = !state.isMidnight; 
-            updateUI(); 
-            calculateRoute(); 
-            if (state.isNavigating) fetchNextLeg(); 
-        }
-
-        function toggleStamp(id) {
-            if (state.stamps.includes(id)) {
-                state.stamps = state.stamps.filter(s => s !== id);
-            } else {
-                state.stamps.push(id);
-            }
-            localStorage.setItem('sanpo-stamps', JSON.stringify(state.stamps));
-            updateUI();
-        }
-
-        function speak(text) {
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'ja-JP';
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(u);
-        }
-
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * (Math.PI / 180);
-            const dLon = (lon2 - lon1) * (Math.PI / 180);
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        }
+        function toggleMidnight() { state.isMidnight = !state.isMidnight; updateUI(); calculateRoute(); if (state.isNavigating) fetchNextLeg(); }
+        function toggleStamp(id) { if (!state.stamps.includes(id)) state.stamps.push(id); localStorage.setItem('sanpo-stamps', JSON.stringify(state.stamps)); updateUI(); }
+        function speak(text) { const u = new SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); }
+        function getDistance(lat1, lon1, lat2, lon2) { const R = 6371; const dLat = (lat2 - lat1) * (Math.PI / 180); const dLon = (lon2 - lon1) * (Math.PI / 180); const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); }
+        function updateNavIcon(mod) { const icon = document.getElementById('nav-arrow-icon'); const icons = { left: 'arrow-up-left', right: 'arrow-up-right', straight: 'arrow-up' }; icon.setAttribute('data-lucide', icons[mod] || 'arrow-up'); lucide.createIcons(); }
+        function stopNavigation() { state.isNavigating = false; document.getElementById('nav-step-card').classList.remove('visible'); if (state.routeLine) state.map.removeLayer(state.routeLine); updateUI(); }
 
         window.onload = init;
     </script>
