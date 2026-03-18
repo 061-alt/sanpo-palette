@@ -15,8 +15,8 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts: Playfair Display (Editorial) & Noto Sans JP -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 
     <script>
         tailwind.config = {
@@ -30,7 +30,8 @@
                         sage: '#5A6B5D',
                     },
                     fontFamily: {
-                        sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                        sans: ['Noto Sans JP', 'sans-serif'],
                     },
                 }
             }
@@ -39,102 +40,101 @@
 
     <style type="text/tailwindcss">
         @layer components {
-            /* スタンダードモードのカード */
-            .card-bg {
-                @apply bg-white/90 backdrop-blur-md border border-white/20 shadow-lg;
-            }
-            /* 深夜モードのカード（半透明の濃い紺色） */
             .midnight-card {
-                @apply bg-[#0A1023]/80 backdrop-blur-xl border border-white/10 shadow-2xl;
+                @apply bg-[#0A1023]/90 backdrop-blur-xl border border-white/10 shadow-2xl;
             }
             .btn-primary {
                 @apply px-6 py-3 rounded-full font-bold transition-all active:scale-95 flex items-center justify-center gap-2;
             }
-            .no-scrollbar::-webkit-scrollbar {
-                display: none;
-            }
+            .no-scrollbar::-webkit-scrollbar { display: none; }
         }
 
-        #map {
-            height: 40vh;
-            width: 100%;
-            z-index: 10;
-        }
+        #map { height: 45vh; width: 100%; z-index: 10; }
 
-        /* Leaflet Customization */
-        .leaflet-container {
-            background: #f0f0f0;
-            font-family: inherit;
+        /* Midnight Map Style */
+        .midnight-map .leaflet-container { background: #050814; }
+        .midnight-map .leaflet-bar a { background-color: #1A1F35 !important; color: white !important; border-bottom: 1px solid #2A2F45 !important; }
+
+        /* Cat Animation */
+        @keyframes tail-wag {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(10deg); }
         }
-        .midnight-map .leaflet-container {
-            background: #050814;
-        }
-        .leaflet-bar {
-            border: none !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-        }
-        .leaflet-bar a {
-            background-color: white !important;
-            color: #2D241E !important;
-            border-bottom: 1px solid #eee !important;
-        }
-        .midnight-map .leaflet-bar a {
-            background-color: #1A1F35 !important;
-            color: white !important;
-            border-bottom: 1px solid #2A2F45 !important;
-        }
+        .cat-tail { animation: tail-wag 2s infinite ease-in-out; transform-origin: bottom; }
     </style>
 </head>
-<body class="bg-sand text-wood font-sans transition-colors duration-700 overflow-x-hidden">
+<body class="bg-sand text-wood font-sans transition-colors duration-700 overflow-x-hidden" id="body">
+
+    <!-- Geolocation Status Overlay -->
+    <div id="geo-overlay" class="fixed inset-0 z-[200] bg-midnight/90 flex flex-col items-center justify-center p-6 text-white text-center transition-opacity duration-500">
+        <div class="mb-6 relative">
+            <i data-lucide="map-pin" class="w-16 h-16 text-moon animate-bounce"></i>
+            <div class="absolute -bottom-2 -right-2 bg-white rounded-full p-1 text-midnight">
+                <i data-lucide="search" class="w-4 h-4"></i>
+            </div>
+        </div>
+        <h2 class="text-2xl font-bold mb-2 font-serif italic">Finding your path...</h2>
+        <p class="text-white/60 mb-8" id="geo-status">現在地を取得しています。ブラウザの許可を確認してください。</p>
+        <button id="retry-btn" class="hidden btn-primary bg-moon text-midnight px-10">
+            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+            再試行する
+        </button>
+    </div>
 
     <!-- Header -->
     <header id="app-header" class="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center transition-all duration-500">
-        <div class="flex items-center gap-2">
-            <div class="w-10 h-10 bg-wood rounded-xl flex items-center justify-center text-white shadow-lg transition-colors duration-500" id="logo-box">
-                <i data-lucide="moon" class="w-6 h-6"></i>
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-wood rounded-xl flex items-center justify-center text-white shadow-lg transition-all duration-500" id="logo-box">
+                <i data-lucide="moon" class="w-6 h-6" id="logo-icon"></i>
             </div>
-            <h1 class="text-xl font-bold tracking-tight" id="app-title">Midnight Stroll</h1>
+            <div class="flex flex-col">
+                <h1 class="text-xl font-bold tracking-tight font-serif italic leading-none" id="app-title">Midnight Stroll</h1>
+                <span class="text-[10px] uppercase tracking-[0.2em] opacity-60" id="app-subtitle">Urban Exploration</span>
+            </div>
+            <!-- Cat Icon (Midnight Mode Only) -->
+            <div id="header-cat" class="hidden text-moon transition-all">
+                <i data-lucide="cat" class="w-6 h-6"></i>
+            </div>
         </div>
         <button id="mode-toggle" class="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center transition-all hover:shadow-lg active:scale-90">
             <i data-lucide="sun" id="mode-icon" class="w-6 h-6 text-orange-500"></i>
         </button>
     </header>
 
-    <main class="pt-20 pb-24">
+    <main class="pt-20 pb-28">
         <!-- Map Section -->
-        <section class="px-4 mb-6">
-            <div id="map-container" class="rounded-3xl overflow-hidden shadow-xl border-4 border-white transition-all duration-500">
+        <section class="px-4 mb-8">
+            <div id="map-container" class="rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white transition-all duration-500 relative">
                 <div id="map"></div>
+                <!-- Floating Cat (Midnight Mode Only) -->
+                <div id="floating-cat" class="hidden absolute bottom-4 right-4 z-20 text-moon/40 pointer-events-none">
+                    <i data-lucide="cat" class="w-12 h-12"></i>
+                </div>
             </div>
         </section>
 
-        <!-- Stats / Info -->
-        <section class="px-6 mb-8 flex gap-4 overflow-x-auto no-scrollbar py-2">
-            <div class="flex-shrink-0 card-bg rounded-2xl p-4 flex items-center gap-3 transition-all duration-500 min-w-[140px]" id="stat-distance">
-                <div class="w-10 h-10 bg-sage/10 rounded-full flex items-center justify-center text-sage">
-                    <i data-lucide="map-pin" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <p class="text-[10px] opacity-60 uppercase tracking-wider">Distance</p>
-                    <p class="font-bold">1.2 km</p>
-                </div>
+        <!-- Recommended Course Section -->
+        <section class="px-6 mb-10">
+            <div class="flex items-center gap-2 mb-4">
+                <i data-lucide="sparkles" class="w-5 h-5 text-moon"></i>
+                <h2 class="text-2xl font-bold font-serif italic" id="course-title">おすすめのコース</h2>
             </div>
-            <div class="flex-shrink-0 card-bg rounded-2xl p-4 flex items-center gap-3 transition-all duration-500 min-w-[140px]" id="stat-stamps">
-                <div class="w-10 h-10 bg-moon/10 rounded-full flex items-center justify-center text-moon">
-                    <i data-lucide="award" class="w-5 h-5"></i>
-                </div>
+            <div id="course-card" class="bg-white rounded-3xl p-6 shadow-xl border border-black/5 flex justify-between items-center transition-all duration-500">
                 <div>
-                    <p class="text-[10px] opacity-60 uppercase tracking-wider">Stamps</p>
-                    <p class="font-bold" id="stamp-count">0 / 12</p>
+                    <h3 class="font-bold text-lg mb-1" id="course-name">月明かりの静寂ルート</h3>
+                    <p class="text-sm opacity-60" id="course-meta">3スポット • 約45分</p>
                 </div>
+                <button class="w-14 h-14 bg-wood text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all" id="course-btn">
+                    <i data-lucide="play" class="w-6 h-6 fill-current"></i>
+                </button>
             </div>
         </section>
 
         <!-- POI List -->
         <section class="px-6">
-            <div class="flex justify-between items-end mb-4">
-                <h2 class="text-lg font-bold" id="list-title">近くのスポット</h2>
-                <span class="text-xs opacity-60" id="list-count">12件見つかりました</span>
+            <div class="flex justify-between items-end mb-6">
+                <h2 class="text-xl font-bold font-serif italic" id="list-title">近くのスポット</h2>
+                <span class="text-xs opacity-40" id="list-count">12 locations found</span>
             </div>
             <div id="poi-list" class="space-y-4">
                 <!-- POI Items will be injected here -->
@@ -143,46 +143,52 @@
     </main>
 
     <!-- Bottom Navigation -->
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 z-50 px-6 py-4 transition-all duration-500">
-        <div class="max-w-md mx-auto card-bg rounded-full flex justify-around items-center p-2 shadow-2xl transition-all duration-500" id="nav-inner">
-            <button class="w-12 h-12 rounded-full flex items-center justify-center text-sage bg-sage/10 transition-all">
-                <i data-lucide="home" class="w-6 h-6"></i>
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 z-50 px-6 py-6 transition-all duration-500">
+        <div class="max-w-md mx-auto bg-white rounded-[2rem] flex justify-around items-center p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] transition-all duration-500" id="nav-inner">
+            <button class="flex flex-col items-center gap-1 group">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center bg-wood text-white shadow-lg transition-all" id="nav-btn-1">
+                    <i data-lucide="map" class="w-6 h-6"></i>
+                </div>
+                <span class="text-[10px] font-bold" id="nav-label-1">近くのスポット</span>
             </button>
-            <button class="w-12 h-12 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-all">
-                <i data-lucide="search" class="w-6 h-6"></i>
+            <button class="flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-all group">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center transition-all">
+                    <i data-lucide="ghost" class="w-6 h-6"></i>
+                </div>
+                <span class="text-[10px] font-bold" id="nav-label-2">深夜徘徊モード</span>
             </button>
-            <button class="w-12 h-12 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-all">
-                <i data-lucide="heart" class="w-6 h-6"></i>
-            </button>
-            <button class="w-12 h-12 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-all">
-                <i data-lucide="user" class="w-6 h-6"></i>
+            <button class="flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-all group">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center transition-all">
+                    <i data-lucide="user" class="w-6 h-6"></i>
+                </div>
+                <span class="text-[10px] font-bold" id="nav-label-3">マイページ</span>
             </button>
         </div>
     </nav>
 
     <!-- Modal Overlay -->
-    <div id="modal-overlay" class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 hidden transition-opacity duration-300">
-        <div class="w-full max-w-lg rounded-3xl p-8 space-y-6 bg-white text-wood shadow-2xl relative transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
-            <button id="modal-close" class="absolute top-6 right-6 opacity-40 hover:opacity-100">
-                <i data-lucide="x" class="w-6 h-6"></i>
+    <div id="modal-overlay" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 hidden transition-opacity duration-300">
+        <div class="w-full max-w-lg rounded-[3rem] p-10 space-y-8 bg-white text-wood shadow-2xl relative transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+            <button id="modal-close" class="absolute top-8 right-8 opacity-40 hover:opacity-100">
+                <i data-lucide="x" class="w-8 h-8"></i>
             </button>
             
-            <div class="space-y-2">
-                <span id="modal-category" class="text-xs font-bold uppercase tracking-widest text-sage">カテゴリー</span>
-                <h3 id="modal-name" class="text-3xl font-bold">スポット名</h3>
+            <div class="space-y-3">
+                <span id="modal-category" class="text-xs font-bold uppercase tracking-[0.3em] text-sage">Category</span>
+                <h3 id="modal-name" class="text-4xl font-bold font-serif italic">Spot Name</h3>
             </div>
             
-            <p id="modal-desc" class="leading-relaxed opacity-80">
-                ここにスポットの詳細説明が入ります。深夜の散歩にぴったりの静かな場所です。
+            <p id="modal-desc" class="leading-relaxed text-lg opacity-70">
+                深夜の散歩にぴったりの静かな場所です。
             </p>
             
-            <div class="flex flex-col gap-3 pt-4">
-                <button id="modal-audio-btn" class="btn-primary bg-sand text-wood hover:bg-wood hover:text-white">
-                    <i data-lucide="volume-2" class="w-5 h-5"></i>
+            <div class="flex flex-col gap-4 pt-6">
+                <button id="modal-audio-btn" class="btn-primary bg-sand text-wood h-16 text-lg">
+                    <i data-lucide="volume-2" class="w-6 h-6"></i>
                     音声ガイドを聞く
                 </button>
-                <button id="modal-stamp-btn" class="btn-primary bg-sage text-white shadow-lg shadow-sage/30">
-                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                <button id="modal-stamp-btn" class="btn-primary bg-wood text-white h-16 text-lg shadow-xl">
+                    <i data-lucide="check-circle" class="w-6 h-6"></i>
                     スタンプを押す
                 </button>
             </div>
@@ -190,15 +196,8 @@
     </div>
 
     <script>
-        // --- Constants & Data ---
-        const CATEGORY_LABELS = {
-            park: '公園',
-            shrine: '神社・仏閣',
-            cafe: '深夜カフェ',
-            view: '展望スポット',
-            store: '24時間営業'
-        };
-
+        // --- Data ---
+        const CATEGORY_LABELS = { park: '公園', shrine: '神社・仏閣', cafe: '深夜カフェ', view: '展望スポット', store: '24時間営業' };
         const MOCK_POIS = [
             { id: 1, name: '代々木公園', category: 'park', lat: 35.6717, lng: 139.6949, distance: 0.8 },
             { id: 2, name: '明治神宮', category: 'shrine', lat: 35.6764, lng: 139.6993, distance: 1.2 },
@@ -210,8 +209,6 @@
             { id: 8, name: '夜景の見える歩道橋', category: 'view', lat: 35.6650, lng: 139.7100, distance: 1.8 },
             { id: 9, name: '深夜のコインランドリー', category: 'store', lat: 35.6600, lng: 139.6950, distance: 0.7 },
             { id: 10, name: '宮下パーク', category: 'park', lat: 35.6615, lng: 139.7025, distance: 0.4 },
-            { id: 11, name: '金王八幡宮', category: 'shrine', lat: 35.6565, lng: 139.7055, distance: 1.4 },
-            { id: 12, name: '深夜のダイナー', category: 'cafe', lat: 35.6550, lng: 139.7000, distance: 1.6 },
         ];
 
         // --- State ---
@@ -219,94 +216,154 @@
             isMidnight: false,
             pois: MOCK_POIS,
             stamps: JSON.parse(localStorage.getItem('stamps') || '[]'),
-            userPos: [35.6660, 139.7000], // 初期位置: 渋谷
+            userPos: [35.6660, 139.7000],
             map: null,
-            markers: []
+            markers: [],
+            userMarker: null
         };
 
-        // --- Map Functions ---
-        function initMap() {
-            state.map = L.map('map', {
-                zoomControl: false,
-                attributionControl: false
-            }).setView(state.userPos, 15);
+        // --- Geolocation ---
+        function getLocation() {
+            const statusText = document.getElementById('geo-status');
+            const retryBtn = document.getElementById('retry-btn');
+            const overlay = document.getElementById('geo-overlay');
 
-            updateMapTiles();
-            
-            // 現在地マーカー
-            L.circleMarker(state.userPos, {
-                radius: 8,
-                fillColor: "#3b82f6",
-                color: "#fff",
-                weight: 3,
-                fillOpacity: 1
-            }).addTo(state.map).bindPopup("現在地");
+            statusText.innerText = "現在地を取得しています...";
+            retryBtn.classList.add('hidden');
+
+            const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    state.userPos = [pos.coords.latitude, pos.coords.longitude];
+                    overlay.classList.add('opacity-0');
+                    setTimeout(() => overlay.classList.add('hidden'), 500);
+                    initOrUpdateMap();
+                },
+                (err) => {
+                    console.error(err);
+                    statusText.innerText = "位置情報の取得に失敗しました。設定を確認してください。";
+                    retryBtn.classList.remove('hidden');
+                },
+                options
+            );
+        }
+
+        // --- Map ---
+        function initOrUpdateMap() {
+            if (!state.map) {
+                state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView(state.userPos, 15);
+                updateMapTiles();
+            } else {
+                state.map.setView(state.userPos, 15);
+            }
+
+            if (state.userMarker) state.map.removeLayer(state.userMarker);
+            state.userMarker = L.circleMarker(state.userPos, {
+                radius: 10, fillColor: "#3b82f6", color: "#fff", weight: 4, fillOpacity: 1
+            }).addTo(state.map);
 
             renderMarkers();
         }
 
         function updateMapTiles() {
-            if (state.map.tileLayer) {
-                state.map.removeLayer(state.map.tileLayer);
-            }
-
+            if (state.map.tileLayer) state.map.removeLayer(state.map.tileLayer);
             const url = state.isMidnight 
                 ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
                 : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-            
             state.map.tileLayer = L.tileLayer(url).addTo(state.map);
         }
 
         function renderMarkers() {
             state.markers.forEach(m => state.map.removeLayer(m));
             state.markers = [];
-
             state.pois.forEach(poi => {
                 const isStamped = state.stamps.includes(poi.id);
                 const color = isStamped ? '#5A6B5D' : (state.isMidnight ? '#F4D03F' : '#2D241E');
-                
                 const marker = L.circleMarker([poi.lat, poi.lng], {
-                    radius: 6,
-                    fillColor: color,
-                    color: "#fff",
-                    weight: 2,
-                    fillOpacity: 0.8
+                    radius: 7, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
                 }).addTo(state.map);
-
                 marker.on('click', () => openPOI(poi.id));
                 state.markers.push(marker);
             });
         }
 
-        // --- UI Functions ---
+        // --- UI Rendering ---
+        function renderUI() {
+            const body = document.getElementById('body');
+            const logoBox = document.getElementById('logo-box');
+            const modeIcon = document.getElementById('mode-icon');
+            const mapContainer = document.getElementById('map-container');
+            const navInner = document.getElementById('nav-inner');
+            const courseCard = document.getElementById('course-card');
+            const headerCat = document.getElementById('header-cat');
+            const floatingCat = document.getElementById('floating-cat');
+
+            if (state.isMidnight) {
+                body.classList.replace('bg-sand', 'bg-midnight');
+                body.classList.replace('text-wood', 'text-white');
+                logoBox.classList.replace('bg-wood', 'bg-moon');
+                logoBox.classList.replace('text-white', 'text-midnight');
+                modeIcon.setAttribute('data-lucide', 'moon');
+                modeIcon.classList.replace('text-orange-500', 'text-moon');
+                mapContainer.classList.replace('border-white', 'border-white/10');
+                navInner.classList.replace('bg-white', 'bg-[#0A1023]');
+                navInner.classList.add('border', 'border-white/10', 'text-white');
+                courseCard.classList.replace('bg-white', 'bg-[#0A1023]');
+                courseCard.classList.add('border-white/10');
+                headerCat.classList.remove('hidden');
+                floatingCat.classList.remove('hidden');
+                document.getElementById('nav-btn-1').classList.replace('bg-wood', 'bg-moon');
+                document.getElementById('nav-btn-1').classList.replace('text-white', 'text-midnight');
+                document.body.classList.add('midnight-map', 'midnight-mode');
+            } else {
+                body.classList.replace('bg-midnight', 'bg-sand');
+                body.classList.replace('text-white', 'text-wood');
+                logoBox.classList.replace('bg-moon', 'bg-wood');
+                logoBox.classList.replace('text-midnight', 'text-white');
+                modeIcon.setAttribute('data-lucide', 'sun');
+                modeIcon.classList.replace('text-moon', 'text-orange-500');
+                mapContainer.classList.replace('border-white/10', 'border-white');
+                navInner.classList.replace('bg-[#0A1023]', 'bg-white');
+                navInner.classList.remove('border', 'border-white/10', 'text-white');
+                courseCard.classList.replace('bg-[#0A1023]', 'bg-white');
+                courseCard.classList.remove('border-white/10');
+                headerCat.classList.add('hidden');
+                floatingCat.classList.add('hidden');
+                document.getElementById('nav-btn-1').classList.replace('bg-moon', 'bg-wood');
+                document.getElementById('nav-btn-1').classList.replace('text-midnight', 'text-white');
+                document.body.classList.remove('midnight-map', 'midnight-mode');
+            }
+
+            renderPOIList();
+            updateMapTiles();
+            lucide.createIcons();
+        }
+
         function renderPOIList() {
             const listContainer = document.getElementById('poi-list');
             listContainer.innerHTML = '';
-
             state.pois.forEach(poi => {
                 const isStamped = state.stamps.includes(poi.id);
                 const item = document.createElement('div');
-                
-                const cardClass = state.isMidnight ? 'midnight-card' : 'card-bg';
+                const cardClass = state.isMidnight ? 'midnight-card' : 'bg-white shadow-lg';
                 const textClass = state.isMidnight ? 'text-white' : 'text-wood';
-                const subTextClass = state.isMidnight ? 'text-white/60' : 'text-wood/60';
                 const accentClass = state.isMidnight ? 'text-moon' : 'text-sage';
 
-                item.className = `${cardClass} rounded-2xl p-5 flex justify-between items-center cursor-pointer hover:scale-[1.02] transition-all`;
+                item.className = `${cardClass} rounded-[2rem] p-6 flex justify-between items-center cursor-pointer hover:scale-[1.02] transition-all`;
                 item.onclick = () => openPOI(poi.id);
-                
                 item.innerHTML = `
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-sage/10 flex items-center justify-center ${accentClass}">
-                            <i data-lucide="${getCategoryIcon(poi.category)}" class="w-6 h-6"></i>
+                    <div class="flex items-center gap-5">
+                        <div class="w-14 h-14 rounded-2xl bg-moon/10 flex items-center justify-center ${accentClass}">
+                            <i data-lucide="${getCategoryIcon(poi.category)}" class="w-7 h-7"></i>
                         </div>
                         <div>
-                            <h3 class="font-bold ${textClass}">${poi.name}</h3>
-                            <p class="text-xs ${subTextClass}">${CATEGORY_LABELS[poi.category]} • ${poi.distance}km</p>
+                            <h3 class="font-bold text-lg ${textClass}">${poi.name}</h3>
+                            <p class="text-xs opacity-50 uppercase tracking-widest">${CATEGORY_LABELS[poi.category]} • ${poi.distance}km</p>
                         </div>
                     </div>
-                    <div class="${isStamped ? 'text-sage' : 'opacity-20'}">
-                        <i data-lucide="check-circle" class="w-6 h-6"></i>
+                    <div class="${isStamped ? 'text-moon' : 'opacity-10'}">
+                        <i data-lucide="award" class="w-8 h-8"></i>
                     </div>
                 `;
                 listContainer.appendChild(item);
@@ -325,105 +382,39 @@
             }
         }
 
-        function toggleMidnightMode() {
-            state.isMidnight = !state.isMidnight;
-            
-            const body = document.body;
-            const logoBox = document.getElementById('logo-box');
-            const modeIcon = document.getElementById('mode-icon');
-            const mapContainer = document.getElementById('map-container');
-            const navInner = document.getElementById('nav-inner');
-            const stats = [document.getElementById('stat-distance'), document.getElementById('stat-stamps')];
-
-            if (state.isMidnight) {
-                body.classList.replace('bg-sand', 'bg-midnight');
-                body.classList.replace('text-wood', 'text-white');
-                logoBox.classList.replace('bg-wood', 'bg-moon');
-                logoBox.classList.replace('text-white', 'text-midnight');
-                modeIcon.setAttribute('data-lucide', 'moon');
-                modeIcon.classList.replace('text-orange-500', 'text-moon');
-                mapContainer.classList.replace('border-white', 'border-white/10');
-                document.body.classList.add('midnight-map');
-                
-                navInner.className = 'max-w-md mx-auto midnight-card rounded-full flex justify-around items-center p-2 shadow-2xl transition-all duration-500';
-                stats.forEach(s => s.className = 'flex-shrink-0 midnight-card rounded-2xl p-4 flex items-center gap-3 transition-all duration-500 min-w-[140px]');
-            } else {
-                body.classList.replace('bg-midnight', 'bg-sand');
-                body.classList.replace('text-white', 'text-wood');
-                logoBox.classList.replace('bg-moon', 'bg-wood');
-                logoBox.classList.replace('text-midnight', 'text-white');
-                modeIcon.setAttribute('data-lucide', 'sun');
-                modeIcon.classList.replace('text-moon', 'text-orange-500');
-                mapContainer.classList.replace('border-white/10', 'border-white');
-                document.body.classList.remove('midnight-map');
-
-                navInner.className = 'max-w-md mx-auto card-bg rounded-full flex justify-around items-center p-2 shadow-2xl transition-all duration-500';
-                stats.forEach(s => s.className = 'flex-shrink-0 card-bg rounded-2xl p-4 flex items-center gap-3 transition-all duration-500 min-w-[140px]');
-            }
-
-            updateMapTiles();
-            renderMarkers();
-            renderPOIList();
-            lucide.createIcons();
-        }
-
-        // --- Modal & Interaction ---
+        // --- Interactions ---
         function openPOI(id) {
             const poi = state.pois.find(p => p.id === id);
-            if (!poi) return;
-
             const modal = document.getElementById('modal-overlay');
             const content = document.getElementById('modal-content');
-            
+            const isStamped = state.stamps.includes(poi.id);
+
             document.getElementById('modal-name').innerText = poi.name;
             document.getElementById('modal-category').innerText = CATEGORY_LABELS[poi.category];
-            document.getElementById('modal-desc').innerText = `${poi.name}は現在地から約${poi.distance}kmの場所にあります。深夜の静かな時間帯に訪れると、日中とは違った幻想的な雰囲気を楽しむことができます。`;
+            document.getElementById('modal-desc').innerText = `${poi.name}は深夜の静寂に包まれた特別なスポットです。月明かりの下で、日常を忘れるひとときを。`;
             
             const stampBtn = document.getElementById('modal-stamp-btn');
-            const isStamped = state.stamps.includes(poi.id);
-            stampBtn.innerText = isStamped ? 'スタンプ済' : 'スタンプを押す';
-            stampBtn.onclick = () => {
-                toggleStamp(poi.id);
-                closeModal();
-            };
+            stampBtn.innerText = isStamped ? 'スタンプ取得済み' : 'スタンプを押す';
+            stampBtn.onclick = () => { toggleStamp(poi.id); closeModal(); };
 
-            const audioBtn = document.getElementById('modal-audio-btn');
-            audioBtn.onclick = () => speakPOI(poi);
-
-            // 深夜モードのモーダルスタイリング
             if (state.isMidnight) {
-                content.className = 'w-full max-w-lg rounded-3xl p-8 space-y-6 midnight-card text-white shadow-2xl relative transform transition-all duration-300 scale-100 opacity-100';
-                document.getElementById('modal-name').classList.add('text-white');
-                document.getElementById('modal-desc').classList.add('text-white/70');
-                audioBtn.classList.replace('bg-sand', 'bg-white/10');
-                audioBtn.classList.add('text-white');
-                stampBtn.classList.replace('bg-sage', 'bg-moon');
+                content.className = 'w-full max-w-lg rounded-[3rem] p-10 space-y-8 midnight-card text-white shadow-2xl relative transform transition-all duration-300 scale-100 opacity-100';
+                document.getElementById('modal-audio-btn').classList.replace('bg-sand', 'bg-white/10');
+                stampBtn.classList.replace('bg-wood', 'bg-moon');
                 stampBtn.classList.replace('text-white', 'text-midnight');
             } else {
-                content.className = 'w-full max-w-lg rounded-3xl p-8 space-y-6 bg-white text-wood shadow-2xl relative transform transition-all duration-300 scale-100 opacity-100';
-                document.getElementById('modal-name').classList.remove('text-white');
-                document.getElementById('modal-desc').classList.remove('text-white/70');
-                audioBtn.classList.replace('bg-white/10', 'bg-sand');
-                audioBtn.classList.remove('text-white');
-                stampBtn.classList.replace('bg-moon', 'bg-sage');
+                content.className = 'w-full max-w-lg rounded-[3rem] p-10 space-y-8 bg-white text-wood shadow-2xl relative transform transition-all duration-300 scale-100 opacity-100';
+                document.getElementById('modal-audio-btn').classList.replace('bg-white/10', 'bg-sand');
+                stampBtn.classList.replace('bg-moon', 'bg-wood');
                 stampBtn.classList.replace('text-midnight', 'text-white');
             }
 
             modal.classList.remove('hidden');
-            setTimeout(() => {
-                content.classList.remove('scale-95', 'opacity-0');
-                content.classList.add('scale-100', 'opacity-100');
-            }, 10);
+            setTimeout(() => content.classList.replace('opacity-0', 'opacity-100'), 10);
         }
 
         function closeModal() {
-            const modal = document.getElementById('modal-overlay');
-            const content = document.getElementById('modal-content');
-            content.classList.replace('scale-100', 'scale-95');
-            content.classList.replace('opacity-100', 'opacity-0');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
+            document.getElementById('modal-overlay').classList.add('hidden');
         }
 
         function toggleStamp(id) {
@@ -433,50 +424,23 @@
                 state.stamps.push(id);
             }
             localStorage.setItem('stamps', JSON.stringify(state.stamps));
-            updateStats();
+            document.getElementById('stamp-count').innerText = `${state.stamps.length} / ${state.pois.length}`;
             renderPOIList();
             renderMarkers();
-        }
-
-        function updateStats() {
-            document.getElementById('stamp-count').innerText = `${state.stamps.length} / ${state.pois.length}`;
-        }
-
-        function speakPOI(poi) {
-            const text = `${poi.name}。${CATEGORY_LABELS[poi.category]}です。現在地から${poi.distance}キロメートル。静かな夜の散歩をお楽しみください。`;
-            const uttr = new SpeechSynthesisUtterance(text);
-            uttr.lang = 'ja-JP';
-            uttr.rate = 0.9;
-            speechSynthesis.speak(uttr);
         }
 
         // --- Init ---
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            initMap();
-            renderPOIList();
-            updateStats();
+            getLocation();
 
-            document.getElementById('mode-toggle').onclick = toggleMidnightMode;
-            document.getElementById('modal-close').onclick = closeModal;
-            document.getElementById('modal-overlay').onclick = (e) => {
-                if (e.target.id === 'modal-overlay') closeModal();
+            document.getElementById('mode-toggle').onclick = () => {
+                state.isMidnight = !state.isMidnight;
+                renderUI();
             };
-
-            // 位置情報の取得
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    state.userPos = [pos.coords.latitude, pos.coords.longitude];
-                    state.map.setView(state.userPos, 15);
-                    L.circleMarker(state.userPos, {
-                        radius: 8,
-                        fillColor: "#3b82f6",
-                        color: "#fff",
-                        weight: 3,
-                        fillOpacity: 1
-                    }).addTo(state.map).bindPopup("現在地");
-                });
-            }
+            document.getElementById('retry-btn').onclick = getLocation;
+            document.getElementById('modal-close').onclick = closeModal;
+            document.getElementById('modal-overlay').onclick = (e) => { if (e.target.id === 'modal-overlay') closeModal(); };
         });
     </script>
 </body>
