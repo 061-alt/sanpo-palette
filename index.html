@@ -8,7 +8,7 @@
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Leaflet (No API Key Required) -->
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
@@ -81,6 +81,31 @@
         .midnight-mode .bg-accent { background-color: var(--moon) !important; }
         .midnight-mode .text-accent { color: var(--moon) !important; }
         
+        /* 崩壊モード (Collapse Mode) */
+        .collapse-mode {
+            background-color: #2B1D1D !important;
+            color: #D4A373 !important;
+        }
+        .collapse-mode .card-bg {
+            background-color: #3D2B2B !important;
+            border: 1px solid #8B4513 !important;
+            color: #D4A373 !important;
+        }
+        .collapse-mode .leaflet-tile-pane {
+            filter: sepia(1) saturate(0.5) brightness(0.8) contrast(1.2) !important;
+        }
+        .collapse-mode .bg-accent, .collapse-mode .bg-secondary { background-color: #FF4500 !important; }
+        .collapse-mode .text-accent, .collapse-mode .text-secondary { color: #FF4500 !important; }
+
+        .glitch { animation: glitch-anim 0.3s infinite; }
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            25% { transform: translate(-2px, 2px); }
+            50% { transform: translate(2px, -2px); }
+            75% { transform: translate(-1px, -1px); }
+            100% { transform: translate(0); }
+        }
+
         /* 通常モードのアクセント */
         .bg-accent { background-color: var(--accent); }
         .text-accent { color: var(--accent); }
@@ -197,9 +222,12 @@
                 <i data-lucide="cat" size="24"></i>
             </div>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
             <button onclick="getLocation()" class="p-3 rounded-full hover:bg-black/5 transition-colors">
                 <i data-lucide="refresh-cw" size="22" class="opacity-50"></i>
+            </button>
+            <button id="skull-btn" class="p-3 rounded-full bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-500 transition-all">
+                <i data-lucide="skull" size="22"></i>
             </button>
             <button onclick="toggleMidnight()" class="p-4 rounded-full bg-secondary text-white shadow-lg hover:scale-110 active:scale-90 transition-all" id="mode-btn">
                 <i data-lucide="moon" size="22"></i>
@@ -363,6 +391,7 @@
         // --- State ---
         let state = {
             isMidnight: false,
+            isCollapse: false,
             activeTab: 'planner',
             plannedTime: 30,
             userLocation: null,
@@ -383,7 +412,8 @@
             currentRouteSteps: [],
             poiMarkers: [],
             catMarker: null,
-            lastLocation: null
+            lastLocation: null,
+            lastActivity: Date.now()
         };
 
         const SEASONS = [
@@ -403,17 +433,23 @@
             initMap();
             getLocation();
             setupOrientation();
+            setupCollapseTrigger();
             
-            document.getElementById('time-range').addEventListener('input', (e) => {
-                state.plannedTime = parseInt(e.target.value);
-                document.getElementById('time-display').innerText = `${state.plannedTime}分`;
-                state.isCustomRoute = false;
-                state.selectedCustomPois = [];
-                calculateRoute();
-                updateUI();
-            });
+            const timeRange = document.getElementById('time-range');
+            if (timeRange) {
+                timeRange.addEventListener('input', (e) => {
+                    state.plannedTime = parseInt(e.target.value);
+                    const display = document.getElementById('time-display');
+                    if (display) display.innerText = `${state.plannedTime}分`;
+                    state.isCustomRoute = false;
+                    state.selectedCustomPois = [];
+                    calculateRoute();
+                    updateUI();
+                });
+            }
             
-            document.getElementById('retry-btn').onclick = getLocation;
+            const retryBtn = document.getElementById('retry-btn');
+            if (retryBtn) retryBtn.onclick = getLocation;
         }
 
         function applySeasonalUI() {
@@ -422,7 +458,8 @@
             
             document.documentElement.style.setProperty('--primary', season.colors.p);
             document.documentElement.style.setProperty('--secondary', season.colors.s);
-            document.getElementById('season-label').innerText = `Sanpo Palette | ${season.label}`;
+            const label = document.getElementById('season-label');
+            if (label) label.innerText = `Sanpo Palette | ${season.label}`;
         }
 
         function initMap() {
@@ -463,13 +500,13 @@
             navigator.geolocation.watchPosition(pos => {
                 const current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                 
-                // Track distance if navigating
                 if (state.isNavigating && state.lastLocation) {
                     const d = getDistance(state.lastLocation.lat, state.lastLocation.lng, current.lat, current.lng);
-                    if (d > 0.005) { // 5m以上移動
+                    if (d > 0.005) {
                         state.totalDistance += d;
                         localStorage.setItem('sanpo-total-dist', state.totalDistance.toFixed(3));
                         state.lastLocation = current;
+                        state.lastActivity = Date.now();
                     }
                 } else {
                     state.lastLocation = current;
@@ -478,18 +515,23 @@
                 state.userLocation = current;
                 if (!state.startLocation) state.startLocation = state.userLocation;
                 
-                overlay.classList.add('hidden');
+                if (overlay) overlay.classList.add('hidden');
                 if (state.isNavigating) {
-                    state.map.setView([state.userLocation.lat, state.userLocation.lng]);
+                    if (state.map) state.map.setView([state.userLocation.lat, state.userLocation.lng]);
                     updateNavigation();
+                    
+                    if (state.isCollapse && Date.now() - state.lastActivity > 60000) {
+                        alert("システムが破損しました。活動を再開してください。");
+                        location.reload();
+                    }
                 } else if (state.pois.length === 0) {
-                    state.map.setView([state.userLocation.lat, state.userLocation.lng]);
+                    if (state.map) state.map.setView([state.userLocation.lat, state.userLocation.lng]);
                 }
                 
                 if (state.pois.length === 0) fetchPOIs();
                 updateCatMarker();
             }, err => {
-                retryBtn.classList.remove('hidden');
+                if (retryBtn) retryBtn.classList.remove('hidden');
             }, { enableHighAccuracy: true });
         }
 
@@ -499,7 +541,6 @@
             const level = getCatLevel();
             
             if (level === 3) {
-                // Level 3: Cat follows user
                 const catPos = [state.userLocation.lat + 0.0001, state.userLocation.lng + 0.0001];
                 if (!state.catMarker) {
                     const catIcon = L.divIcon({
@@ -549,7 +590,13 @@
             let loopPois = [];
             let estimatedTime = state.plannedTime;
 
-            if (state.isCustomRoute && state.selectedCustomPois.length > 0) {
+            if (state.isCollapse) {
+                loopPois = [
+                    { lat: state.startLocation.lat + 0.006, lng: state.startLocation.lng + 0.004, name: "廃墟の記憶 (Scavenge)", category: "historic", id: "collapse-1" },
+                    { lat: state.startLocation.lat - 0.004, lng: state.startLocation.lng + 0.009, name: "白猫の祭壇", category: "shrine", id: "collapse-2" }
+                ];
+                estimatedTime = 45;
+            } else if (state.isCustomRoute && state.selectedCustomPois.length > 0) {
                 loopPois = state.pois.filter(p => state.selectedCustomPois.includes(p.id));
                 loopPois.sort((a, b) => a.distance - b.distance);
                 let totalDist = 0;
@@ -583,7 +630,7 @@
             state.suggestedRoute = [...loopPois, { ...state.startLocation, name: "スタート地点 (ゴール)", isGoal: true }];
             if (state.poiMarkers) state.poiMarkers.forEach(m => state.map.removeLayer(m));
             state.poiMarkers = state.suggestedRoute.map((p, i) => {
-                const color = p.isGoal ? '#3b82f6' : (state.isMidnight ? '#F4D03F' : 'var(--secondary)');
+                const color = p.isGoal ? '#3b82f6' : (state.isMidnight ? '#F4D03F' : (state.isCollapse ? '#FF4500' : 'var(--secondary)'));
                 return L.circleMarker([p.lat, p.lng], { radius: 10, fillColor: color, color: '#fff', weight: 3, fillOpacity: 0.9 }).addTo(state.map).bindPopup(`<b>${i+1}. ${p.name}</b>`);
             });
         }
@@ -593,24 +640,27 @@
             state.isNavigating = true;
             state.currentStepIndex = 0;
             state.lastAnnouncedStep = -1;
+            state.lastActivity = Date.now();
             await fetchNextLeg();
-            document.getElementById('nav-step-card').classList.add('visible');
+            const card = document.getElementById('nav-step-card');
+            if (card) card.classList.add('visible');
             updateUI();
-            const modeText = state.isMidnight ? "安全な大通り優先ルートで" : "景色の良いルートで";
+            const modeText = state.isCollapse ? "システム崩壊モードで" : (state.isMidnight ? "安全な大通り優先ルートで" : "景色の良いルートで");
             speak(`${state.isCustomRoute ? "カスタム" : "おすすめ"}ルートを開始します。${modeText}、${state.suggestedRoute[0].name}へのナビを開始します！`);
         }
 
         async function fetchNextLeg() {
             const start = state.currentStepIndex === 0 ? state.userLocation : state.suggestedRoute[state.currentStepIndex - 1];
             const end = state.suggestedRoute[state.currentStepIndex];
-            const profile = state.isMidnight ? 'driving' : 'walking';
+            const profile = (state.isMidnight || state.isCollapse) ? 'driving' : 'walking';
             const url = `https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
             try {
                 const res = await fetch(url);
                 const data = await res.json();
                 const route = data.routes[0];
                 if (state.routeLine) state.map.removeLayer(state.routeLine);
-                state.routeLine = L.geoJSON(route.geometry, { style: { color: state.isMidnight ? '#F4D03F' : '#3b82f6', weight: 12, opacity: 0.8 } }).addTo(state.map);
+                const color = state.isCollapse ? '#FF4500' : (state.isMidnight ? '#F4D03F' : '#3b82f6');
+                state.routeLine = L.geoJSON(route.geometry, { style: { color: color, weight: 12, opacity: 0.8 } }).addTo(state.map);
                 state.currentRouteSteps = route.legs[0].steps;
             } catch (e) { console.error(e); }
         }
@@ -625,9 +675,11 @@
                 fetchNextLeg();
                 return;
             }
-            document.getElementById('nav-dist').innerText = `${dist}m`;
+            const distEl = document.getElementById('nav-dist');
+            if (distEl) distEl.innerText = `${dist}m`;
             let instruction = nextStep.maneuver.type === 'arrive' ? "まもなく目的地です" : `${nextStep.name || '道'}を${translateManeuver(nextStep.maneuver.modifier)}`;
-            document.getElementById('nav-instruction').innerText = instruction;
+            const instEl = document.getElementById('nav-instruction');
+            if (instEl) instEl.innerText = instruction;
             updateNavIcon(nextStep.maneuver.modifier);
             const stepId = nextStep.maneuver.location.toString();
             if (dist < 15 && state.lastAnnouncedStep !== stepId) {
@@ -642,11 +694,10 @@
             const arrivedPoi = state.suggestedRoute[state.currentStepIndex];
             speak(`${arrivedPoi.name}に到着しました！`);
             
-            if (getCatLevel() >= 2) speak("ニャー！"); // Meow at Lvl 2+
+            if (getCatLevel() >= 2) speak("ニャー！");
 
             if (!arrivedPoi.isGoal && !state.stamps.includes(arrivedPoi.id)) {
                 toggleStamp(arrivedPoi.id);
-                // Update seasonal stats
                 const month = new Date().getMonth();
                 const season = SEASONS.find(s => s.months.includes(month));
                 state.seasonalStats[season.id]++;
@@ -681,15 +732,18 @@
 
         function updateNavIcon(mod) {
             const icon = document.getElementById('nav-arrow-icon');
-            const icons = { left: 'arrow-up-left', right: 'arrow-up-right', straight: 'arrow-up' };
-            icon.setAttribute('data-lucide', icons[mod] || 'arrow-up');
-            lucide.createIcons();
+            if (icon) {
+                const icons = { left: 'arrow-up-left', right: 'arrow-up-right', straight: 'arrow-up' };
+                icon.setAttribute('data-lucide', icons[mod] || 'arrow-up');
+                lucide.createIcons();
+            }
         }
 
         function stopNavigation() {
             state.isNavigating = false;
-            document.getElementById('nav-step-card').classList.remove('visible');
-            if (state.routeLine) state.map.removeLayer(state.routeLine);
+            const card = document.getElementById('nav-step-card');
+            if (card) card.classList.remove('visible');
+            if (state.routeLine && state.map) state.map.removeLayer(state.routeLine);
             updateUI();
         }
 
@@ -700,138 +754,209 @@
             const modeBtn = document.getElementById('mode-btn');
             const midnightCat = document.getElementById('midnight-cat');
             const safetyBadge = document.getElementById('safety-badge');
+            const headerIcon = document.getElementById('header-icon');
+            const skullBtn = document.getElementById('skull-btn');
 
-            if (state.isMidnight) {
+            if (!body) return;
+
+            body.classList.remove('midnight-mode', 'collapse-mode');
+            if (card) card.classList.remove('midnight-mode', 'collapse-mode');
+            if (headerIcon) headerIcon.classList.remove('glitch', 'text-red-500');
+
+            if (state.isCollapse) {
+                body.classList.add('collapse-mode');
+                if (card) card.classList.add('collapse-mode');
+                if (headerIcon) headerIcon.classList.add('glitch', 'text-red-500');
+                if (skullBtn) skullBtn.classList.replace('text-gray-400', 'text-red-500');
+                if (arrowBox) {
+                    arrowBox.classList.replace('bg-secondary', 'bg-accent');
+                    arrowBox.classList.replace('bg-moon', 'bg-accent');
+                }
+            } else if (state.isMidnight) {
                 body.classList.add('midnight-mode');
-                midnightCat.classList.remove('hidden');
-                safetyBadge.classList.remove('hidden');
-                card.classList.add('midnight-mode');
-                arrowBox.classList.replace('bg-secondary', 'bg-moon');
-                arrowBox.classList.replace('text-white', 'text-midnight');
-                modeBtn.classList.replace('bg-secondary', 'bg-moon');
-                modeBtn.classList.replace('text-white', 'text-midnight');
-                modeBtn.innerHTML = '<i data-lucide="sun" size="22"></i>';
+                if (midnightCat) midnightCat.classList.remove('hidden');
+                if (safetyBadge) safetyBadge.classList.remove('hidden');
+                if (card) card.classList.add('midnight-mode');
+                if (arrowBox) {
+                    arrowBox.classList.replace('bg-secondary', 'bg-moon');
+                    arrowBox.classList.replace('text-white', 'text-midnight');
+                }
+                if (modeBtn) {
+                    modeBtn.classList.replace('bg-secondary', 'bg-moon');
+                    modeBtn.classList.replace('text-white', 'text-midnight');
+                    modeBtn.innerHTML = '<i data-lucide="sun" size="22"></i>';
+                }
+                if (skullBtn) skullBtn.classList.replace('text-red-500', 'text-gray-400');
             } else {
-                body.classList.remove('midnight-mode');
-                midnightCat.classList.add('hidden');
-                safetyBadge.classList.add('hidden');
-                card.classList.remove('midnight-mode');
-                arrowBox.classList.replace('bg-moon', 'bg-secondary');
-                arrowBox.classList.replace('text-midnight', 'text-white');
-                modeBtn.classList.replace('bg-moon', 'bg-secondary');
-                modeBtn.classList.replace('text-midnight', 'text-white');
-                modeBtn.innerHTML = '<i data-lucide="moon" size="22"></i>';
+                if (midnightCat) midnightCat.classList.add('hidden');
+                if (safetyBadge) safetyBadge.classList.add('hidden');
+                if (arrowBox) {
+                    arrowBox.classList.replace('bg-moon', 'bg-secondary');
+                    arrowBox.classList.replace('text-midnight', 'text-white');
+                }
+                if (modeBtn) {
+                    modeBtn.classList.replace('bg-moon', 'bg-secondary');
+                    modeBtn.classList.replace('text-midnight', 'text-white');
+                    modeBtn.innerHTML = '<i data-lucide="moon" size="22"></i>';
+                }
+                if (skullBtn) skullBtn.classList.replace('text-red-500', 'text-gray-400');
             }
 
             // Route List
             const routeList = document.getElementById('route-list');
-            routeList.innerHTML = '';
-            state.suggestedRoute.forEach((p, i) => {
-                const div = document.createElement('div');
-                div.className = `p-6 rounded-[2rem] flex items-center gap-5 card-bg relative z-10 ${state.isMidnight ? 'bg-navy-card' : 'bg-gray-50'}`;
-                div.innerHTML = `
-                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center bg-secondary/10 text-secondary font-bold text-xl">${i+1}</div>
-                    <div class="flex-1">
-                        <h5 class="font-bold text-xl">${p.name}</h5>
-                        <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.isGoal ? 'ゴール' : CATEGORY_LABELS[p.category]}</p>
-                    </div>
-                `;
-                routeList.appendChild(div);
-            });
+            if (routeList) {
+                routeList.innerHTML = '';
+                state.suggestedRoute.forEach((p, i) => {
+                    const div = document.createElement('div');
+                    div.className = `p-6 rounded-[2rem] flex items-center gap-5 card-bg relative z-10 ${state.isMidnight ? 'bg-navy-card' : (state.isCollapse ? 'bg-[#3D2B2B]' : 'bg-gray-50')}`;
+                    div.innerHTML = `
+                        <div class="w-14 h-14 rounded-2xl flex items-center justify-center bg-secondary/10 text-secondary font-bold text-xl">${i+1}</div>
+                        <div class="flex-1">
+                            <h5 class="font-bold text-xl">${p.name}</h5>
+                            <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.isGoal ? 'ゴール' : CATEGORY_LABELS[p.category]}</p>
+                        </div>
+                    `;
+                    routeList.appendChild(div);
+                });
+            }
 
+            const routeName = document.getElementById('route-name');
+            const routeMeta = document.getElementById('route-meta');
             if (state.suggestedRoute.length > 0) {
-                const routeTitle = state.isCustomRoute ? "カスタム周回コース" : `${state.plannedTime}分の周回コース`;
-                document.getElementById('route-name').innerText = routeTitle;
-                document.getElementById('route-meta').innerText = `${state.suggestedRoute.length - 1}箇所のスポットを巡って戻ります (約${state.plannedTime}分)`;
+                const routeTitle = state.isCollapse ? "システム崩壊ルート" : (state.isCustomRoute ? "カスタム周回コース" : `${state.plannedTime}分の周回コース`);
+                if (routeName) routeName.innerText = routeTitle;
+                if (routeMeta) routeMeta.innerText = `${state.suggestedRoute.length - 1}箇所のスポットを巡って戻ります (約${state.plannedTime}分)`;
             }
 
             // Rally List
             const poiList = document.getElementById('poi-list');
             const customRouteBox = document.getElementById('custom-route-start-box');
             const customRouteSummary = document.getElementById('custom-route-summary');
-            poiList.innerHTML = '';
-            if (state.selectedCustomPois.length > 0) {
-                customRouteBox.classList.remove('hidden');
-                customRouteSummary.innerText = `${state.selectedCustomPois.length}スポット 選択中 (約${state.plannedTime}分)`;
-            } else {
-                customRouteBox.classList.add('hidden');
-            }
+            if (poiList) {
+                poiList.innerHTML = '';
+                if (state.selectedCustomPois.length > 0) {
+                    if (customRouteBox) customRouteBox.classList.remove('hidden');
+                    if (customRouteSummary) customRouteSummary.innerText = `${state.selectedCustomPois.length}スポット 選択中 (約${state.plannedTime}分)`;
+                } else if (customRouteBox) {
+                    customRouteBox.classList.add('hidden');
+                }
 
-            state.pois.forEach(p => {
-                const isStamped = state.stamps.includes(p.id);
-                const isSelected = state.selectedCustomPois.includes(p.id);
-                const div = document.createElement('div');
-                div.className = `p-6 rounded-[2.5rem] flex justify-between items-center card-bg transition-all cursor-pointer ${state.isMidnight ? 'bg-navy-card' : 'bg-white'} ${isSelected ? 'ring-4 ring-secondary' : ''}`;
-                div.onclick = () => toggleCustomPoi(p.id);
-                div.innerHTML = `
-                    <div class="flex items-center gap-5">
-                        <div class="w-16 h-16 rounded-3xl flex items-center justify-center ${isStamped ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-100 text-gray-400'}">
-                            <i data-lucide="${isStamped ? 'check' : 'map-pin'}" size="28"></i>
+                state.pois.forEach(p => {
+                    const isStamped = state.stamps.includes(p.id);
+                    const isSelected = state.selectedCustomPois.includes(p.id);
+                    const div = document.createElement('div');
+                    div.className = `p-6 rounded-[2.5rem] flex justify-between items-center card-bg transition-all cursor-pointer ${state.isMidnight ? 'bg-navy-card' : (state.isCollapse ? 'bg-[#3D2B2B]' : 'bg-white')} ${isSelected ? 'ring-4 ring-secondary' : ''}`;
+                    div.onclick = () => toggleCustomPoi(p.id);
+                    div.innerHTML = `
+                        <div class="flex items-center gap-5">
+                            <div class="w-16 h-16 rounded-3xl flex items-center justify-center ${isStamped ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-100 text-gray-400'}">
+                                <i data-lucide="${isStamped ? 'check' : 'map-pin'}" size="28"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-xl">${p.name}</h4>
+                                <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.distance.toFixed(2)}km</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-xl">${p.name}</h4>
-                            <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.distance.toFixed(2)}km</p>
+                        <div class="flex flex-col items-end gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest ${isSelected ? 'text-secondary' : 'opacity-30'}">${isSelected ? '選択中' : 'タップで選択'}</span>
+                            <button onclick="event.stopPropagation(); toggleStamp(${p.id})" class="px-6 py-2 rounded-xl text-[10px] font-bold transition-all ${isStamped ? 'opacity-30' : 'bg-secondary text-white shadow-lg shadow-secondary/20 active:scale-95'}">${isStamped ? '済' : 'スタンプ'}</button>
                         </div>
-                    </div>
-                    <div class="flex flex-col items-end gap-2">
-                        <span class="text-[10px] font-bold uppercase tracking-widest ${isSelected ? 'text-secondary' : 'opacity-30'}">${isSelected ? '選択中' : 'タップで選択'}</span>
-                        <button onclick="event.stopPropagation(); toggleStamp(${p.id})" class="px-6 py-2 rounded-xl text-[10px] font-bold transition-all ${isStamped ? 'opacity-30' : 'bg-secondary text-white shadow-lg shadow-secondary/20 active:scale-95'}">${isStamped ? '済' : 'スタンプ'}</button>
-                    </div>
-                `;
-                poiList.appendChild(div);
-            });
-            document.getElementById('rally-count').innerText = `${state.stamps.length} 達成`;
+                    `;
+                    poiList.appendChild(div);
+                });
+            }
+            const rallyCount = document.getElementById('rally-count');
+            if (rallyCount) rallyCount.innerText = `${state.stamps.length} 達成`;
 
             // Cat Intimacy UI
             const level = getCatLevel();
             const levelNames = ["", "黒猫の影", "人懐っこい黒猫", "旅の相棒"];
             const levelDescs = ["", "まだ遠くから見守っています...", "時々足元に寄ってくるようになりました", "あなたの後ろをトコトコ付いてきます！"];
-            document.getElementById('cat-level-name').innerText = levelNames[level];
-            document.getElementById('cat-level-desc').innerText = levelDescs[level];
-            document.getElementById('total-dist-display').innerText = `${state.totalDistance.toFixed(1)} km`;
-            document.getElementById('cat-gauge').style.width = `${Math.min((state.totalDistance / 15) * 100, 100)}%`;
-            document.getElementById('cat-heart').classList.toggle('hidden', level < 3);
-            document.getElementById('cat-status-icon').className = `text-white ${level >= 2 ? 'animate-bounce' : ''}`;
+            const catNameEl = document.getElementById('cat-level-name');
+            const catDescEl = document.getElementById('cat-level-desc');
+            const totalDistEl = document.getElementById('total-dist-display');
+            const catGaugeEl = document.getElementById('cat-gauge');
+            const catHeartEl = document.getElementById('cat-heart');
+            const catIconEl = document.getElementById('cat-status-icon');
+
+            if (catNameEl) catNameEl.innerText = levelNames[level];
+            if (catDescEl) catDescEl.innerText = levelDescs[level];
+            if (totalDistEl) totalDistEl.innerText = `${state.totalDistance.toFixed(1)} km`;
+            if (catGaugeEl) catGaugeEl.style.width = `${Math.min((state.totalDistance / 15) * 100, 100)}%`;
+            if (catHeartEl) catHeartEl.classList.toggle('hidden', level < 3);
+            if (catIconEl) catIconEl.className = `text-white ${level >= 2 ? 'animate-bounce' : ''}`;
 
             // Seasonal Titles
             const titlesList = document.getElementById('seasonal-titles-list');
-            titlesList.innerHTML = '';
-            SEASONS.forEach(s => {
-                const count = state.seasonalStats[s.id];
-                const isUnlocked = count >= 3;
-                const div = document.createElement('div');
-                div.className = `p-5 rounded-2xl flex items-center justify-between ${isUnlocked ? 'bg-accent/10 border-2 border-accent' : 'bg-gray-100 opacity-40'}`;
-                div.innerHTML = `
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-accent">
-                            <i data-lucide="${isUnlocked ? 'award' : 'lock'}"></i>
+            if (titlesList) {
+                titlesList.innerHTML = '';
+                SEASONS.forEach(s => {
+                    const count = state.seasonalStats[s.id];
+                    const isUnlocked = count >= 3;
+                    const div = document.createElement('div');
+                    div.className = `p-5 rounded-2xl flex items-center justify-between ${isUnlocked ? 'bg-accent/10 border-2 border-accent' : 'bg-gray-100 opacity-40'}`;
+                    div.innerHTML = `
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-accent">
+                                <i data-lucide="${isUnlocked ? 'award' : 'lock'}"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-widest">${s.name}の称号</p>
+                                <p class="text-sm font-bold">${isUnlocked ? s.title : '??? (3スポット訪問で解放)'}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p class="text-xs font-bold uppercase tracking-widest">${s.name}の称号</p>
-                            <p class="text-sm font-bold">${isUnlocked ? s.title : '??? (3スポット訪問で解放)'}</p>
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold opacity-40">${count}/3</p>
                         </div>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[10px] font-bold opacity-40">${count}/3</p>
-                    </div>
-                `;
-                titlesList.appendChild(div);
-            });
+                    `;
+                    titlesList.appendChild(div);
+                });
+            }
 
             lucide.createIcons();
+        }
+
+        function setupCollapseTrigger() {
+            const skullBtn = document.getElementById('skull-btn');
+            if (skullBtn) {
+                let skullTimer;
+                skullBtn.onmousedown = skullBtn.ontouchstart = () => {
+                    skullTimer = setTimeout(() => enterCollapseMode(), 2000);
+                };
+                skullBtn.onmouseup = skullBtn.ontouchend = () => clearTimeout(skullTimer);
+            }
+        }
+
+        function enterCollapseMode() {
+            state.isCollapse = !state.isCollapse;
+            if (state.isCollapse) {
+                state.isMidnight = false;
+                speak("システム崩壊。虚無の散歩を開始します。");
+                state.isCustomRoute = false;
+                state.selectedCustomPois = [];
+                calculateRoute();
+            } else {
+                speak("システム復旧。");
+                calculateRoute();
+            }
+            updateUI();
         }
 
         function switchTab(tab) {
             state.activeTab = tab;
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.getElementById(`tab-${tab}`).classList.add('active');
+            const tabEl = document.getElementById(`tab-${tab}`);
+            if (tabEl) tabEl.classList.add('active');
+            
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.add('opacity-40'));
-            document.getElementById(`btn-${tab}`).classList.remove('opacity-40');
+            const btnEl = document.getElementById(`btn-${tab}`);
+            if (btnEl) btnEl.classList.remove('opacity-40');
             updateUI();
         }
 
         function toggleMidnight() { 
             state.isMidnight = !state.isMidnight; 
+            if (state.isMidnight) state.isCollapse = false;
             updateUI(); 
             calculateRoute(); 
             if (state.isNavigating) fetchNextLeg(); 
