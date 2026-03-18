@@ -165,7 +165,7 @@
             </div>
         </div>
         <h2 class="text-3xl font-bold mb-4">直感ナビを起動中...</h2>
-        <p class="text-white/60 mb-10 text-lg">位置情報とセンサーを許可してくださいっぴ！</p>
+        <p class="text-white/60 mb-10 text-lg">位置情報とセンサーを許可してください！</p>
         <button id="retry-btn" class="hidden px-12 py-5 bg-moon text-midnight rounded-full font-bold text-xl shadow-2xl active:scale-95 transition-transform">
             再試行する
         </button>
@@ -219,6 +219,13 @@
                     <span>30 min</span>
                     <span>120 min</span>
                 </div>
+                <div class="mt-6 pt-6 border-t border-black/5 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="map-pin" size="18" class="text-sage"></i>
+                        <span class="text-sm font-bold" id="start-point-label">現在地からスタート</span>
+                    </div>
+                    <button onclick="setStartAtCurrent()" class="text-xs font-bold text-sage underline">位置を更新</button>
+                </div>
             </div>
 
             <!-- 地図セクション -->
@@ -242,6 +249,10 @@
                         <div class="space-y-2">
                             <h4 class="text-3xl font-bold leading-tight tracking-tight" id="route-name">現在地を取得中...</h4>
                             <p class="text-base opacity-60 font-medium" id="route-meta">近くのスポットを探しています</p>
+                            <div id="safety-badge" class="hidden inline-flex items-center gap-1 px-3 py-1 rounded-full bg-moon/20 text-moon text-[10px] font-bold uppercase tracking-widest">
+                                <i data-lucide="shield-check" size="12"></i>
+                                Safety Route Active
+                            </div>
                         </div>
                         <button onclick="startFullRoute()" class="w-20 h-20 rounded-[2rem] bg-sage text-white shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center" id="start-route-btn">
                             <i data-lucide="play" size="36" class="fill-current ml-1"></i>
@@ -319,6 +330,7 @@
             activeTab: 'planner',
             plannedTime: 30,
             userLocation: null,
+            startLocation: null,
             heading: 0,
             pois: [],
             stamps: JSON.parse(localStorage.getItem('sanpo-stamps') || '[]'),
@@ -333,6 +345,7 @@
         };
 
         const CATEGORY_LABELS = { shrine: '神社・寺院', park: '公園', historic: '史跡', other: 'スポット' };
+        const WALKING_SPEED_KMH = 4.5; // Average walking speed
 
         // --- Initialization ---
         function init() {
@@ -367,7 +380,6 @@
         function setupOrientation() {
             if (window.DeviceOrientationEvent) {
                 window.addEventListener('deviceorientation', (e) => {
-                    // Heading-up logic
                     let heading = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : 0);
                     state.heading = heading;
                     updateMapRotation();
@@ -389,22 +401,33 @@
 
             navigator.geolocation.watchPosition(pos => {
                 state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                if (!state.startLocation) state.startLocation = state.userLocation;
+                
                 overlay.classList.add('hidden');
                 state.map.setView([state.userLocation.lat, state.userLocation.lng]);
                 
                 if (state.isNavigating) updateNavigation();
                 if (state.pois.length === 0) fetchPOIs();
             }, err => {
-                status.innerText = "GPSをオンにしてねっぴ！";
+                status.innerText = "GPSをオンにしてね！";
                 retryBtn.classList.remove('hidden');
             }, { enableHighAccuracy: true });
         }
 
+        function setStartAtCurrent() {
+            if (state.userLocation) {
+                state.startLocation = state.userLocation;
+                calculateRoute();
+                updateUI();
+                speak("スタート地点を現在地に更新しました。");
+            }
+        }
+
         // --- Data Fetching (Overpass API) ---
         async function fetchPOIs() {
-            const { lat, lng } = state.userLocation;
+            const { lat, lng } = state.startLocation || state.userLocation;
             // Fetch nearby shrines, parks, and historic sites
-            const query = `[out:json][timeout:25];(node["amenity"="place_of_worship"](around:1500,${lat},${lng});node["leisure"="park"](around:1500,${lat},${lng});node["historic"](around:1500,${lat},${lng}););out center;`;
+            const query = `[out:json][timeout:25];(node["amenity"="place_of_worship"](around:2500,${lat},${lng});node["leisure"="park"](around:2500,${lat},${lng});node["historic"](around:2500,${lat},${lng}););out center;`;
             try {
                 const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
                 const data = await res.json();
@@ -424,24 +447,50 @@
             }
         }
 
-        // --- Route Planning Logic ---
+        // --- Circular Route Planning Logic ---
         function calculateRoute() {
-            if (state.pois.length === 0) return;
+            if (state.pois.length === 0 || !state.startLocation) return;
             
-            // Determine number of spots based on planned time
-            // 30-45m: 1-2, 60-90m: 3-4, 105-120m: 5+
-            let count = 1;
-            if (state.plannedTime >= 105) count = 5;
-            else if (state.plannedTime >= 60) count = 3;
-            else if (state.plannedTime >= 45) count = 2;
+            // Total distance for the round trip
+            const totalDistanceKm = (state.plannedTime / 60) * WALKING_SPEED_KMH;
+            const targetRadius = totalDistanceKm / 3.5; // Heuristic for a loop
 
-            // Pick spots in order of distance (simple greedy approach for now)
-            state.suggestedRoute = state.pois.slice(0, count);
+            // Filter POIs within a reasonable radius for a loop
+            let candidates = state.pois.filter(p => p.distance <= targetRadius);
+            
+            // Determine number of spots (2-4)
+            let count = Math.min(Math.max(Math.floor(state.plannedTime / 30) + 1, 2), 4);
+            
+            // Pick POIs in different directions to form a loop
+            let loopPois = [];
+            if (candidates.length > 0) {
+                // Pick first POI
+                loopPois.push(candidates[0]);
+                
+                // Try to pick others that are spread out
+                for (let i = 1; i < count; i++) {
+                    let bestNext = null;
+                    let maxDistFromLast = -1;
+                    
+                    candidates.forEach(c => {
+                        if (loopPois.includes(c)) return;
+                        let d = getDistance(loopPois[loopPois.length-1].lat, loopPois[loopPois.length-1].lng, c.lat, c.lng);
+                        if (d > maxDistFromLast) {
+                            maxDistFromLast = d;
+                            bestNext = c;
+                        }
+                    });
+                    if (bestNext) loopPois.push(bestNext);
+                }
+            }
+
+            // Circular Route: Start -> POIs -> Start
+            state.suggestedRoute = [...loopPois, { ...state.startLocation, name: "スタート地点 (ゴール)", isGoal: true }];
             
             // Update Map Markers
             if (state.poiMarkers) state.poiMarkers.forEach(m => state.map.removeLayer(m));
             state.poiMarkers = state.suggestedRoute.map((p, i) => {
-                const color = state.isMidnight ? '#F4D03F' : '#87A96B';
+                const color = p.isGoal ? '#3b82f6' : (state.isMidnight ? '#F4D03F' : '#87A96B');
                 return L.circleMarker([p.lat, p.lng], {
                     radius: 10, 
                     fillColor: color, 
@@ -464,15 +513,19 @@
             
             document.getElementById('nav-step-card').classList.add('visible');
             updateUI();
-            speak(`${state.suggestedRoute[0].name}へのナビを開始しますっぴ！`);
+            
+            const modeText = state.isMidnight ? "安全な大通り優先ルートで" : "景色の良いルートで";
+            speak(`${modeText}、${state.suggestedRoute[0].name}へのナビを開始します！`);
         }
 
         async function fetchNextLeg() {
-            const start = state.userLocation;
+            const start = state.currentStepIndex === 0 ? state.userLocation : state.suggestedRoute[state.currentStepIndex - 1];
             const end = state.suggestedRoute[state.currentStepIndex];
             
-            // OSRM API for walking route
-            const url = `https://router.project-osrm.org/route/v1/walking/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
+            // OSRM API
+            const profile = state.isMidnight ? 'driving' : 'walking';
+            const url = `https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
+            
             try {
                 const res = await fetch(url);
                 const data = await res.json();
@@ -500,7 +553,7 @@
             
             let instruction = nextStep.maneuver.type === 'arrive' ? "まもなく目的地です" : `${nextStep.name || '道'}を${translateManeuver(nextStep.maneuver.modifier)}`;
             
-            // Landmark Guidance: Find nearest POI to the turn
+            // Landmark Guidance
             const landmark = state.pois.find(p => {
                 const d = getDistance(stepCoord.lat, stepCoord.lng, p.lat, p.lng);
                 return d < 0.03 && p.name !== state.suggestedRoute[state.currentStepIndex].name;
@@ -512,10 +565,10 @@
             document.getElementById('nav-instruction').innerText = instruction;
             updateNavIcon(nextStep.maneuver.modifier);
 
-            // Audio Guidance (15m before turn)
+            // Audio Guidance
             const stepId = nextStep.maneuver.location.toString();
             if (dist < 15 && state.lastAnnouncedStep !== stepId) {
-                speak(`まもなく${instruction}ですっぴ！`);
+                speak(`まもなく${instruction}です！`);
                 state.lastAnnouncedStep = stepId;
                 state.currentRouteSteps.shift();
                 
@@ -527,10 +580,9 @@
 
         async function handleArrive() {
             const arrivedPoi = state.suggestedRoute[state.currentStepIndex];
-            speak(`${arrivedPoi.name}に到着しましたっぴ！`);
+            speak(`${arrivedPoi.name}に到着しました！`);
             
-            // Auto-stamp
-            if (!state.stamps.includes(arrivedPoi.id)) {
+            if (!arrivedPoi.isGoal && !state.stamps.includes(arrivedPoi.id)) {
                 toggleStamp(arrivedPoi.id);
             }
 
@@ -539,7 +591,7 @@
                 speak(`次は${state.suggestedRoute[state.currentStepIndex].name}に向かいます。`);
                 await fetchNextLeg();
             } else {
-                speak("すべての目的地を巡りました。お疲れ様でしたっぴ！");
+                speak("お疲れ様でした！スタート地点に戻りました。");
                 stopNavigation();
             }
         }
@@ -570,10 +622,12 @@
             const arrowBox = document.getElementById('nav-arrow-box');
             const modeBtn = document.getElementById('mode-btn');
             const midnightCat = document.getElementById('midnight-cat');
+            const safetyBadge = document.getElementById('safety-badge');
 
             if (state.isMidnight) {
                 body.classList.add('midnight-mode');
                 midnightCat.classList.remove('hidden');
+                safetyBadge.classList.remove('hidden');
                 card.classList.add('midnight-mode');
                 arrowBox.classList.replace('bg-sage', 'bg-moon');
                 arrowBox.classList.replace('text-white', 'text-midnight');
@@ -584,6 +638,7 @@
             } else {
                 body.classList.remove('midnight-mode');
                 midnightCat.classList.add('hidden');
+                safetyBadge.classList.add('hidden');
                 card.classList.remove('midnight-mode');
                 arrowBox.classList.replace('bg-moon', 'bg-sage');
                 arrowBox.classList.replace('text-midnight', 'text-white');
@@ -603,15 +658,15 @@
                     <div class="w-14 h-14 rounded-2xl flex items-center justify-center bg-sage/10 text-sage font-bold text-xl">${i+1}</div>
                     <div class="flex-1">
                         <h5 class="font-bold text-xl">${p.name}</h5>
-                        <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${CATEGORY_LABELS[p.category]}</p>
+                        <p class="text-xs opacity-50 font-bold uppercase tracking-widest">${p.isGoal ? 'ゴール' : CATEGORY_LABELS[p.category]}</p>
                     </div>
                 `;
                 routeList.appendChild(div);
             });
 
             if (state.suggestedRoute.length > 0) {
-                document.getElementById('route-name').innerText = `${state.suggestedRoute[0].name}を巡る${state.plannedTime}分コース`;
-                document.getElementById('route-meta').innerText = `${state.suggestedRoute.length}箇所のスポットを巡ります`;
+                document.getElementById('route-name').innerText = `${state.plannedTime}分の周回コース`;
+                document.getElementById('route-meta').innerText = `${state.suggestedRoute.length - 1}箇所のスポットを巡って戻ります`;
             }
 
             // Rally List
@@ -642,7 +697,7 @@
             const badge = document.getElementById('master-badge');
             const trophyIcon = document.getElementById('trophy-icon-container');
             if (state.stamps.length >= 5) {
-                trophyStatus.innerHTML = '<p class="text-2xl font-bold text-moon">称号：さんぽマスター</p><p class="mt-2">5つ以上のスポットを制覇しましたっぴ！</p>';
+                trophyStatus.innerHTML = '<p class="text-2xl font-bold text-moon">称号：さんぽマスター</p><p class="mt-2">5つ以上のスポットを制覇しました！</p>';
                 badge.classList.remove('hidden');
                 trophyIcon.innerHTML = '<i data-lucide="trophy" size="120" class="text-moon animate-bounce"></i>';
             } else {
