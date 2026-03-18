@@ -8,35 +8,35 @@
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.4/framer-motion.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
-        @import "tailwindcss";
-
         :root {
+            --sakura: #FFB7C5;
+            --leaf: #98FB98;
             --accent: #FF6B6B;
-            --bg: #F8F9FA;
+            --bg: #FFF9FB;
             --card: #FFFFFF;
-            --text: #2D3436;
+            --text: #4A4A4A;
             --accent-rgb: 255, 107, 107;
-            --card-rgb: 255, 255, 255;
         }
 
-        /* 季節ごとのテーマ */
-        .theme-spring { --accent: #FF8E9E; --bg: #FFF5F7; --accent-rgb: 255, 142, 158; }
-        .theme-summer { --accent: #4FACFE; --bg: #F0F9FF; --accent-rgb: 79, 172, 254; }
-        .theme-autumn { --accent: #E67E22; --bg: #FFF9F0; --accent-rgb: 230, 126, 34; }
-        .theme-winter { --accent: #A5C9CA; --bg: #F4F9F9; --accent-rgb: 165, 201, 202; }
-
-        /* 崩壊モード (Ruined Mode) */
-        .mode-collapse {
-            --accent: #00FF41;
-            --bg: #0A0A0A;
-            --card: #141414;
+        .theme-midnight {
+            --bg: #0B1026;
+            --card: #1A1F3C;
             --text: #E0E0E0;
+            --accent: #C0C0C0;
+            --accent-rgb: 192, 192, 192;
+        }
+
+        .theme-collapse {
+            --bg: #050505;
+            --card: #111111;
+            --text: #00FF41;
+            --accent: #00FF41;
             --accent-rgb: 0, 255, 65;
-            filter: sepia(0.2) contrast(1.2);
         }
 
         body {
@@ -49,70 +49,86 @@
             touch-action: manipulation;
         }
 
+        #map-container {
+            position: absolute;
+            inset: 0;
+            transition: transform 0.3s ease-out;
+        }
+
         #map {
             height: 100%;
             width: 100%;
-            filter: grayscale(0.2);
-        }
-
-        .mode-collapse #map {
-            filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(1.2);
+            z-index: 1;
         }
 
         .nav-glass {
-            background: rgba(var(--card-rgb), 0.8);
-            backdrop-filter: blur(12px);
+            background: rgba(var(--card-rgb, 255, 255, 255), 0.85);
+            backdrop-filter: blur(16px);
             border-top: 1px solid rgba(0,0,0,0.05);
         }
 
-        .mode-collapse .nav-glass {
-            background: rgba(20, 20, 20, 0.9);
-            border-top: 1px solid rgba(0, 255, 65, 0.2);
-            box-shadow: 0 -4px 20px rgba(0, 255, 65, 0.1);
+        .theme-midnight .nav-glass {
+            background: rgba(26, 31, 60, 0.9);
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
 
-        .stamp-card {
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 1rem;
-            background: var(--card);
-            border: 2px dashed rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
+        .theme-collapse .nav-glass {
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 1px solid #00FF41;
         }
 
-        .stamp-card.active {
-            border: 2px solid var(--accent);
-            background: rgba(var(--accent-rgb), 0.1);
-            transform: scale(1.05);
-        }
-
-        .mode-collapse .stamp-card {
-            border-color: rgba(0, 255, 65, 0.3);
-            background: #1a1a1a;
-        }
-
-        .mode-collapse .stamp-card.active {
-            border-color: #00FF41;
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 999px;
+            font-weight: bold;
+            box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.3);
+            transition: all 0.2s active:scale-95;
         }
 
         .loading-overlay {
             position: fixed;
             inset: 0;
-            background: #FFFFFF;
+            background: var(--bg);
             z-index: 9999;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: opacity 0.8s ease;
+            text-align: center;
+            padding: 2rem;
         }
 
-        .mode-collapse .loading-overlay {
-            background: #000000;
-            color: #00FF41;
+        .route-card {
+            background: var(--card);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+            border: 1px solid rgba(0,0,0,0.05);
+            backdrop-filter: blur(8px);
+        }
+
+        .theme-collapse .route-card {
+            border-color: #00FF41;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+        }
+
+        /* Leaflet Customization */
+        .leaflet-vignette {
+            box-shadow: inset 0 0 120px rgba(0,0,0,0.25);
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            z-index: 1000;
+        }
+
+        .theme-collapse .leaflet-tile {
+            filter: invert(100%) hue-rotate(180deg) brightness(0.6) contrast(1.4) saturate(0.5);
+        }
+
+        .theme-midnight .leaflet-tile {
+            filter: brightness(0.6) invert(100%) contrast(1.2) hue-rotate(200deg) saturate(0.4);
         }
 
         .gauge-container {
@@ -120,7 +136,6 @@
             background: rgba(0,0,0,0.05);
             border-radius: 3px;
             overflow: hidden;
-            margin-top: 8px;
         }
 
         .gauge-fill {
@@ -142,65 +157,80 @@
             100% { transform: translate(0); }
         }
 
-        .cracked-overlay {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background-image: url('https://www.transparenttextures.com/patterns/cracked-glass.png');
-            opacity: 0.1;
-            z-index: 100;
-            display: none;
-        }
-        .mode-collapse .cracked-overlay { display: block; }
+        /* Panel Animations */
+        .panel-hidden { transform: translateY(120%); }
+        .panel-visible { transform: translateY(0); }
     </style>
 </head>
 <body class="theme-spring">
 
-    <div class="cracked-overlay"></div>
+    <div id="vignette" class="leaflet-vignette"></div>
 
     <!-- Loading Screen -->
     <div id="loading-screen" class="loading-overlay">
-        <div class="relative mb-8">
-            <i data-lucide="cat" class="w-16 h-16 text-accent animate-bounce"></i>
-            <div class="absolute -top-2 -right-2">
-                <i data-lucide="sparkles" class="w-6 h-6 text-yellow-400 animate-pulse"></i>
+        <div class="mb-10 relative">
+            <i data-lucide="palette" class="w-24 h-24 text-accent animate-bounce"></i>
+            <div class="absolute -top-4 -right-4">
+                <i data-lucide="sparkles" class="w-8 h-8 text-yellow-400 animate-pulse"></i>
             </div>
         </div>
-        <h1 class="text-2xl font-bold tracking-widest mb-2">SANPO PALETTE</h1>
-        <p class="text-sm opacity-60" id="loading-status">位置情報を取得中...</p>
-        <div class="mt-12 text-xs opacity-40 cursor-pointer hover:opacity-100 transition-opacity" onclick="hideLoading()">
-            強制的に開始 (Skip)
-        </div>
+        <h1 class="text-4xl font-bold mb-4 tracking-[0.2em]">SANPO PALETTE</h1>
+        <p class="text-sm opacity-60 mb-12 leading-relaxed">散歩を彩る、あなただけのパレット。<br>3月のテーマ：桜と新緑</p>
+        
+        <button id="start-btn" class="btn-primary flex items-center gap-3 text-lg">
+            <i data-lucide="play" class="fill-current"></i>
+            アプリを起動
+        </button>
+        
+        <p id="loading-status" class="mt-6 text-xs opacity-40 font-medium">位置情報とセンサーの許可が必要です</p>
     </div>
 
     <!-- Header -->
     <header class="fixed top-0 left-0 right-0 p-6 z-50 flex justify-between items-center pointer-events-none">
-        <div class="bg-white/80 backdrop-blur-md px-4 py-2 rounded-full shadow-sm border border-black/5 pointer-events-auto flex items-center gap-3">
-            <div class="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white">
-                <i data-lucide="map-pin" size="16"></i>
+        <div class="bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full shadow-lg border border-black/5 pointer-events-auto flex items-center gap-4">
+            <div id="mode-icon" class="w-9 h-9 bg-accent rounded-full flex items-center justify-center text-white shadow-inner">
+                <i data-lucide="sun" size="18"></i>
             </div>
             <div>
-                <p class="text-[10px] uppercase tracking-tighter opacity-50 font-bold">Current Palette</p>
-                <p class="text-xs font-bold" id="current-season-name">Spring Bloom</p>
+                <p class="text-[10px] uppercase tracking-widest opacity-50 font-black">Current Palette</p>
+                <p class="text-sm font-bold" id="palette-name">March Sakura</p>
             </div>
         </div>
         
-        <div id="collapse-trigger" class="w-12 h-12 bg-white/80 backdrop-blur-md rounded-full shadow-sm border border-black/5 flex items-center justify-center pointer-events-auto cursor-pointer transition-all active:scale-90" 
-             onmousedown="startCollapseTimer()" onmouseup="cancelCollapseTimer()" ontouchstart="startCollapseTimer()" ontouchend="cancelCollapseTimer()">
+        <div id="collapse-trigger" class="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full shadow-lg border border-black/5 flex items-center justify-center pointer-events-auto cursor-pointer transition-all active:scale-90">
             <i data-lucide="skull" id="header-icon" class="text-gray-400"></i>
         </div>
     </header>
 
-    <!-- Main Map Container -->
+    <!-- Map Container -->
     <main class="relative w-full h-full">
-        <div id="map"></div>
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
         
-        <!-- Cat Companion Overlay -->
-        <div id="cat-companion" class="fixed pointer-events-none z-40 hidden">
+        <!-- Navigation Card -->
+        <div id="nav-card" class="fixed top-28 left-6 right-6 z-40 hidden">
+            <div class="route-card flex items-center gap-5">
+                <div id="nav-arrow" class="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center text-accent shadow-sm">
+                    <i data-lucide="arrow-up" size="36"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-[10px] opacity-50 font-black uppercase tracking-widest mb-1">Next Destination</p>
+                    <p class="text-lg font-bold leading-tight" id="nav-target">公園の入り口</p>
+                    <div class="flex items-center gap-2 mt-1">
+                        <i data-lucide="navigation-2" size="12" class="text-accent"></i>
+                        <p class="text-sm font-bold opacity-70" id="nav-dist">あと 120m</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cat Companion (Overlay) -->
+        <div id="cat-companion" class="fixed pointer-events-none z-40 hidden transition-all duration-1000">
             <div class="relative">
-                <i data-lucide="cat" class="text-black w-8 h-8 drop-shadow-lg"></i>
-                <div id="cat-heart" class="absolute -top-4 -right-2 text-red-500 hidden">
-                    <i data-lucide="heart" size="12" class="fill-current animate-ping"></i>
+                <i data-lucide="cat" class="text-black w-12 h-12 drop-shadow-2xl"></i>
+                <div id="cat-heart" class="absolute -top-6 -right-2 text-red-500 hidden">
+                    <i data-lucide="heart" size="16" class="fill-current animate-ping"></i>
                 </div>
             </div>
         </div>
@@ -208,371 +238,546 @@
 
     <!-- UI Panels -->
     <div id="panel-container" class="fixed bottom-24 left-4 right-4 z-50 pointer-events-none">
-        <!-- Stamp Panel -->
-        <div id="stamp-panel" class="bg-white/90 backdrop-blur-xl p-6 rounded-3xl shadow-2xl border border-black/5 pointer-events-auto transform translate-y-full transition-transform duration-500 hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="font-bold text-lg flex items-center gap-2">
-                    <i data-lucide="palette" class="text-accent"></i>
-                    季節のスタンプ帳
-                </h2>
-                <button onclick="togglePanel('stamp')" class="opacity-40 hover:opacity-100"><i data-lucide="x"></i></button>
+        <!-- Plan Panel -->
+        <div id="plan-panel" class="bg-white/95 backdrop-blur-2xl p-8 rounded-[40px] shadow-2xl border border-black/5 pointer-events-auto panel-hidden transition-transform duration-500 ease-out hidden">
+            <h2 class="font-bold text-2xl mb-8 flex items-center gap-3">
+                <i data-lucide="map" class="text-accent"></i> 散歩プランを作成
+            </h2>
+            <div class="space-y-8">
+                <div>
+                    <div class="flex justify-between mb-4">
+                        <label class="text-xs font-black opacity-40 uppercase tracking-widest">散歩時間</label>
+                        <span id="time-val" class="text-lg font-black text-accent">60 分</span>
+                    </div>
+                    <input type="range" id="time-slider" min="30" max="120" step="15" value="60" class="w-full h-2 bg-black/5 rounded-lg appearance-none cursor-pointer accent-accent">
+                </div>
+                <div class="grid grid-cols-2 gap-5">
+                    <button onclick="generateRoute('circular')" class="p-5 bg-black/5 rounded-3xl text-center hover:bg-black/10 transition-all active:scale-95">
+                        <i data-lucide="refresh-cw" class="mx-auto mb-3 text-accent"></i>
+                        <p class="text-xs font-bold">おまかせ周回</p>
+                    </button>
+                    <button onclick="showRally()" class="p-5 bg-black/5 rounded-3xl text-center hover:bg-black/10 transition-all active:scale-95">
+                        <i data-lucide="list" class="mx-auto mb-3 text-accent"></i>
+                        <p class="text-xs font-bold">スポット選択</p>
+                    </button>
+                </div>
+                <button id="start-walk-btn" class="w-full btn-primary mt-4 text-lg py-4">散歩を開始する</button>
             </div>
-            <div class="grid grid-cols-4 gap-3" id="stamp-grid">
-                <!-- Stamps will be injected here -->
-            </div>
-            <p class="mt-6 text-xs opacity-50 text-center">3つ集めると特別な称号が手に入ります</p>
         </div>
 
-        <!-- My Page Panel -->
-        <div id="mypage-panel" class="bg-white/90 backdrop-blur-xl p-6 rounded-3xl shadow-2xl border border-black/5 pointer-events-auto transform translate-y-full transition-transform duration-500 hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="font-bold text-lg">旅の記録</h2>
-                <button onclick="togglePanel('mypage')" class="opacity-40 hover:opacity-100"><i data-lucide="x"></i></button>
+        <!-- Rally Panel -->
+        <div id="rally-panel" class="bg-white/95 backdrop-blur-2xl p-8 rounded-[40px] shadow-2xl border border-black/5 pointer-events-auto panel-hidden transition-transform duration-500 ease-out hidden">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="font-bold text-2xl">周辺のスポット</h2>
+                <button onclick="togglePanel('plan')" class="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center"><i data-lucide="chevron-left" size="20"></i></button>
             </div>
-            
-            <div class="space-y-6">
-                <div class="flex items-center gap-4 p-4 bg-black/5 rounded-2xl">
-                    <div class="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-white">
-                        <i data-lucide="footprints"></i>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase opacity-50">Total Distance</p>
-                        <p class="text-xl font-bold font-mono" id="stat-distance">0.00 km</p>
-                    </div>
-                </div>
+            <div id="rally-list" class="space-y-4 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+                <!-- Spots will be injected here -->
+            </div>
+        </div>
 
-                <div class="p-4 bg-black/5 rounded-2xl">
-                    <div class="flex items-center gap-3 mb-2">
-                        <i data-lucide="cat" class="text-accent"></i>
-                        <div class="flex-1">
-                            <p class="text-xs font-bold" id="cat-level-name">黒猫の影</p>
-                            <p class="text-sm opacity-60" id="cat-level-desc">まだ遠くから見守っています...</p>
-                        </div>
-                    </div>
-                    <div class="gauge-container">
-                        <div id="cat-gauge" class="gauge-fill" style="width: 0%"></div>
-                    </div>
+        <!-- Trophy Panel -->
+        <div id="trophy-panel" class="bg-white/95 backdrop-blur-2xl p-8 rounded-[40px] shadow-2xl border border-black/5 pointer-events-auto panel-hidden transition-transform duration-500 ease-out hidden">
+            <h2 class="font-bold text-2xl mb-8">旅の記録</h2>
+            <div class="grid grid-cols-2 gap-5 mb-8">
+                <div class="p-5 bg-black/5 rounded-3xl">
+                    <p class="text-[10px] opacity-40 uppercase font-black tracking-widest mb-1">Total Distance</p>
+                    <p class="text-2xl font-black font-mono" id="stat-dist-val">0.00 km</p>
                 </div>
-
-                <div id="seasonal-trophies" class="space-y-2">
-                    <!-- Seasonal titles will be injected here -->
+                <div class="p-5 bg-black/5 rounded-3xl">
+                    <p class="text-[10px] opacity-40 uppercase font-black tracking-widest mb-1">Cat Intimacy</p>
+                    <p class="text-2xl font-black font-mono" id="stat-cat-val">Lv. 1</p>
                 </div>
-
-                <div id="collapse-stats" class="hidden p-4 bg-green-500/10 border border-green-500/20 rounded-2xl">
-                    <p class="text-[10px] uppercase text-green-500 font-bold mb-2 glitch-text">System Corruption</p>
-                    <div class="flex justify-between items-end">
-                        <p class="text-2xl font-mono text-green-500" id="stat-collapse">0%</p>
-                        <i data-lucide="activity" class="text-green-500 animate-pulse"></i>
-                    </div>
+            </div>
+            <div class="space-y-4">
+                <p class="text-[10px] font-black opacity-40 uppercase tracking-widest">獲得した称号</p>
+                <div id="title-list" class="flex flex-wrap gap-3">
+                    <!-- Titles -->
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Bottom Navigation -->
-    <nav class="fixed bottom-0 left-0 right-0 h-20 nav-glass z-50 flex justify-around items-center px-6">
-        <button onclick="togglePanel('stamp')" class="flex flex-col items-center gap-1 group">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group-active:scale-90">
-                <i data-lucide="palette" class="text-gray-400 group-hover:text-accent"></i>
+    <nav class="fixed bottom-0 left-0 right-0 h-24 nav-glass z-50 flex justify-around items-center px-8">
+        <button onclick="togglePanel('plan')" id="tab-plan" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-active:scale-90">
+                <i data-lucide="map" class="text-gray-400 group-hover:text-accent transition-colors"></i>
             </div>
-            <span class="text-[10px] font-bold opacity-40 group-hover:opacity-100">Stamp</span>
+            <span class="text-[10px] font-black opacity-40 uppercase tracking-widest">Plan</span>
         </button>
-        
-        <button onclick="centerMap()" class="relative -top-6 w-16 h-16 bg-accent rounded-full shadow-lg shadow-accent/40 flex items-center justify-center text-white transition-all active:scale-90">
-            <i data-lucide="navigation" size="28"></i>
-        </button>
-
-        <button onclick="togglePanel('mypage')" class="flex flex-col items-center gap-1 group">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group-active:scale-90">
-                <i data-lucide="user" class="text-gray-400 group-hover:text-accent"></i>
+        <button onclick="togglePanel('rally')" id="tab-rally" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-active:scale-90">
+                <i data-lucide="flag" class="text-gray-400 group-hover:text-accent transition-colors"></i>
             </div>
-            <span class="text-[10px] font-bold opacity-40 group-hover:opacity-100">My Page</span>
+            <span class="text-[10px] font-black opacity-40 uppercase tracking-widest">Rally</span>
+        </button>
+        <button onclick="togglePanel('trophy')" id="tab-trophy" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-active:scale-90">
+                <i data-lucide="award" class="text-gray-400 group-hover:text-accent transition-colors"></i>
+            </div>
+            <span class="text-[10px] font-black opacity-40 uppercase tracking-widest">Trophies</span>
         </button>
     </nav>
 
-    <!-- Audio Elements -->
-    <audio id="se-meow" src="https://assets.mixkit.co/active_storage/sfx/2361/2361-preview.mp3"></audio>
-    <audio id="se-stamp" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
-
     <script>
-        // --- Constants & State ---
-        const SEASONS = [
-            { id: 'spring', title: '春の息吹を辿る者', months: [2, 3, 4], theme: 'theme-spring' },
-            { id: 'summer', title: '夏の陽炎を往く探索者', months: [5, 6, 7], theme: 'theme-summer' },
-            { id: 'autumn', title: '秋の静寂を聴く者', months: [8, 9, 10], theme: 'theme-autumn' },
-            { id: 'winter', title: '冬の銀華を愛でる者', months: [11, 0, 1], theme: 'theme-winter' }
-        ];
-
+        // --- State ---
         let state = {
-            isCollapseMode: false,
-            totalDistance: 0,
+            mode: 'spring', // spring, midnight, collapse
+            isWalking: false,
+            distance: 0,
             stamps: [],
-            seasonalStats: { spring: 0, summer: 0, autumn: 0, winter: 0 },
-            lastPos: null,
+            titles: [],
+            currentRoute: [],
+            currentStep: 0,
+            pos: null,
+            heading: 0,
+            lastActivity: Date.now(),
             isInitialized: false
         };
 
-        let map, userMarker;
+        let map, userMarker, routePolyline;
         let collapseTimer;
 
-        // --- Initialization ---
-        async function init() {
+        // --- Init ---
+        document.getElementById('start-btn').addEventListener('click', async () => {
+            const status = document.getElementById('loading-status');
+            status.innerText = "位置情報を取得しています...";
+            
             try {
-                loadState();
-                applyTheme();
+                // 1. Geolocation
+                const pos = await getCurrentPosition();
+                state.pos = [pos.coords.latitude, pos.coords.longitude];
                 
-                // 3.5秒後に強制的にローディングを隠すセーフティ
-                setTimeout(() => {
-                    if (!state.isInitialized) hideLoading();
-                }, 3500);
-
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(updatePosition, handleGeoError, {
-                        enableHighAccuracy: true,
-                        maximumAge: 1000
-                    });
+                // 2. Sensors (iOS requires permission)
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    try {
+                        const permission = await DeviceOrientationEvent.requestPermission();
+                        if (permission === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                        }
+                    } catch (e) { console.warn("Orientation permission denied", e); }
                 } else {
-                    console.warn("Geolocation not supported");
-                    hideLoading();
+                    window.addEventListener('deviceorientation', handleOrientation);
                 }
-            } catch (e) {
-                console.error("Initialization error:", e);
+
+                // 3. Setup Map & UI
+                initMap();
+                loadProgress();
                 hideLoading();
+                
+                // 4. Start Update Loop
+                setInterval(updateLoop, 1000);
+                
+                state.isInitialized = true;
+                speak("アプリが起動しました。散歩の準備をしましょう。");
+            } catch (err) {
+                console.error(err);
+                status.innerText = "エラー: 位置情報を許可して再読み込みしてください";
             }
-        }
+        });
 
         function hideLoading() {
             const screen = document.getElementById('loading-screen');
-            if (!screen || screen.style.display === 'none') return;
-            
             screen.style.opacity = '0';
-            setTimeout(() => {
-                screen.style.display = 'none';
-                state.isInitialized = true;
-            }, 800);
-            
-            // Audio Context Unlock
-            const unlock = () => {
-                const meow = document.getElementById('se-meow');
-                if (meow) {
-                    meow.play().then(() => meow.pause()).catch(() => {});
-                }
-                document.removeEventListener('click', unlock);
-            };
-            document.addEventListener('click', unlock);
+            setTimeout(() => screen.style.display = 'none', 800);
         }
 
-        function applyTheme() {
-            const month = new Date().getMonth();
-            const season = SEASONS.find(s => s.months.includes(month)) || SEASONS[0];
-            document.body.className = state.isCollapseMode ? 'mode-collapse' : season.theme;
-            document.getElementById('current-season-name').innerText = state.isCollapseMode ? 'CORRUPTED' : season.id.toUpperCase();
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false,
+                dragging: true,
+                touchZoom: true
+            }).setView(state.pos, 17);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            userMarker = L.circleMarker(state.pos, {
+                radius: 12,
+                fillColor: 'var(--accent)',
+                fillOpacity: 1,
+                color: 'white',
+                weight: 4
+            }).addTo(map);
+
+            // Time selector update
+            document.getElementById('time-slider').addEventListener('input', (e) => {
+                document.getElementById('time-val').innerText = `${e.target.value} 分`;
+            });
+
+            // Long press for Collapse Mode
+            const trigger = document.getElementById('collapse-trigger');
+            trigger.addEventListener('mousedown', startCollapseTimer);
+            trigger.addEventListener('touchstart', startCollapseTimer);
+            trigger.addEventListener('mouseup', cancelCollapseTimer);
+            trigger.addEventListener('touchend', cancelCollapseTimer);
+
+            checkTimeMode();
+        }
+
+        // --- Core Logic ---
+        function getCurrentPosition() {
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { 
+                    enableHighAccuracy: true,
+                    timeout: 10000
+                });
+            });
+        }
+
+        function handleOrientation(e) {
+            if (e.webkitCompassHeading) {
+                state.heading = e.webkitCompassHeading;
+            } else if (e.alpha) {
+                state.heading = 360 - e.alpha;
+            }
             
-            if (state.isCollapseMode) {
-                document.getElementById('header-icon').classList.add('text-green-500', 'glitch-text');
-                document.getElementById('collapse-stats').classList.remove('hidden');
+            // Heading Up rotation logic
+            if (state.isWalking && map) {
+                const mapEl = document.getElementById('map-container');
+                mapEl.style.transform = `rotate(${-state.heading}deg)`;
+            }
+        }
+
+        function checkTimeMode() {
+            const hour = new Date().getHours();
+            if (hour >= 18 || hour < 5) {
+                setMode('midnight');
             } else {
-                document.getElementById('header-icon').classList.remove('text-green-500', 'glitch-text');
-                document.getElementById('collapse-stats').classList.add('hidden');
+                setMode('spring');
             }
         }
 
-        // --- Map & Location ---
-        function updatePosition(position) {
-            const { latitude, longitude } = position.coords;
-            const currentPos = { lat: latitude, lng: longitude };
-
-            if (!map) {
-                initMap(currentPos);
-                hideLoading();
-            }
-
-            if (state.lastPos) {
-                const dist = calculateDistance(state.lastPos, currentPos);
-                if (dist > 0.005) { // 5m以上移動
-                    state.totalDistance += dist;
-                    updateStats();
-                    checkCatInteraction();
-                    saveState();
-                }
-            }
-
-            state.lastPos = currentPos;
-            if (userMarker) userMarker.setPosition(currentPos);
-            updateCatPosition(currentPos);
-        }
-
-        function initMap(pos) {
-            map = new google.maps.Map(document.getElementById('map'), {
-                center: pos,
-                zoom: 17,
-                disableDefaultUI: true,
-                styles: state.isCollapseMode ? [] : [
-                    { "featureType": "all", "elementType": "labels.text.fill", "stylers": [{ "color": "#7c93a3" }, { "lightness": "-10" }] }
-                ]
-            });
-
-            userMarker = new google.maps.Marker({
-                position: pos,
-                map: map,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 10,
-                    fillColor: state.isCollapseMode ? '#00FF41' : '#FF6B6B',
-                    fillOpacity: 1,
-                    strokeWeight: 4,
-                    strokeColor: '#FFFFFF'
-                }
-            });
-
-            generateDummySpots(pos);
-        }
-
-        function updateCatPosition(userPos) {
-            const level = getCatLevel();
-            if (level < 2) return;
-
-            const catEl = document.getElementById('cat-companion');
-            catEl.classList.remove('hidden');
+        function setMode(mode) {
+            state.mode = mode;
+            document.body.className = `theme-${mode}`;
+            const icon = document.getElementById('mode-icon');
+            const palette = document.getElementById('palette-name');
+            const headerIcon = document.getElementById('header-icon');
             
-            // 簡易的な中央付近への表示
-            catEl.style.left = '50%';
-            catEl.style.top = '60%';
-        }
-
-        // --- Mechanics ---
-        function calculateDistance(p1, p2) {
-            const R = 6371;
-            const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-            const dLng = (p2.lng - p1.lng) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
-                      Math.sin(dLng/2) * Math.sin(dLng/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
-        function getCatLevel() {
-            if (state.totalDistance > 15) return 3;
-            if (state.totalDistance > 5) return 2;
-            if (state.totalDistance > 0) return 1;
-            return 0;
-        }
-
-        function checkCatInteraction() {
-            const level = getCatLevel();
-            if (level >= 2 && Math.random() < 0.05) {
-                const meow = document.getElementById('se-meow');
-                if (meow) meow.play().catch(() => {});
+            if (mode === 'midnight') {
+                icon.innerHTML = '<i data-lucide="moon"></i>';
+                palette.innerText = 'Midnight Blue';
+                headerIcon.classList.remove('text-green-500', 'glitch-text');
+            } else if (mode === 'collapse') {
+                icon.innerHTML = '<i data-lucide="skull"></i>';
+                palette.innerText = 'SYSTEM CORRUPTED';
+                headerIcon.classList.add('text-green-500', 'glitch-text');
+            } else {
+                icon.innerHTML = '<i data-lucide="sun"></i>';
+                palette.innerText = 'March Sakura';
+                headerIcon.classList.remove('text-green-500', 'glitch-text');
             }
+            lucide.createIcons();
         }
 
-        function generateDummySpots(pos) {
-            for (let i = 0; i < 5; i++) {
-                const lat = pos.lat + (Math.random() - 0.5) * 0.01;
-                const lng = pos.lng + (Math.random() - 0.5) * 0.01;
+        // --- Routing ---
+        async function generateRoute(type) {
+            const time = parseInt(document.getElementById('time-slider').value);
+            const radius = (time / 60) * 1500; // ~4km/h -> 1.5km radius
+            
+            if (state.mode === 'collapse') {
+                generateCollapseRoute();
+                return;
+            }
+
+            // Overpass API to fetch POIs
+            const query = `[out:json];node(around:${radius},${state.pos[0]},${state.pos[1]})["tourism"~"attraction|viewpoint|museum|gallery|park"];out 5;`;
+            try {
+                const res = await fetch(`https://overpass-api.interpreter.de/api/interpreter?data=${encodeURIComponent(query)}`)
+                    .catch(() => fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`));
+                const data = await res.json();
                 
-                const marker = new google.maps.Marker({
-                    position: { lat, lng },
-                    map: map,
-                    icon: {
-                        url: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-                        scaledSize: new google.maps.Size(30, 30)
-                    }
-                });
+                if (!data.elements || data.elements.length === 0) {
+                    alert("周辺にスポットが見つかりませんでした。少し場所を変えてみてください。");
+                    return;
+                }
 
-                marker.addListener('click', () => {
-                    collectStamp(i);
-                });
+                state.currentRoute = data.elements.map(e => ({
+                    lat: e.lat,
+                    lng: e.lon,
+                    name: e.tags.name || "名もなき場所"
+                }));
+                
+                // Add start point to end to make it circular
+                state.currentRoute.push({ lat: state.pos[0], lng: state.pos[1], name: "スタート地点" });
+                
+                startWalk();
+            } catch (err) {
+                console.error(err);
+                alert("スポット情報の取得に失敗しました。");
             }
         }
 
-        function collectStamp(id) {
-            if (state.stamps.includes(id)) return;
-            
-            state.stamps.push(id);
-            const stampSound = document.getElementById('se-stamp');
-            if (stampSound) stampSound.play().catch(() => {});
-            
-            const month = new Date().getMonth();
-            const season = SEASONS.find(s => s.months.includes(month)) || SEASONS[0];
-            state.seasonalStats[season.id]++;
-            
-            updateStats();
-            saveState();
-            alert("スタンプを獲得しました！");
+        function generateCollapseRoute() {
+            // Decadent logic: Start -> Scavenge -> White Cat -> Start
+            // Roundabout paths: offset points
+            state.currentRoute = [
+                { lat: state.pos[0] + 0.006, lng: state.pos[1] + 0.004, name: "廃墟 (Scavenge)" },
+                { lat: state.pos[0] - 0.004, lng: state.pos[1] + 0.009, name: "白猫の祭壇" },
+                { lat: state.pos[0], lng: state.pos[1], name: "帰還ゲート" }
+            ];
+            startWalk();
         }
 
-        // --- UI & State Management ---
-        function togglePanel(type) {
-            const stamp = document.getElementById('stamp-panel');
-            const mypage = document.getElementById('mypage-panel');
+        function startWalk() {
+            state.isWalking = true;
+            state.currentStep = 0;
+            state.lastActivity = Date.now();
             
-            if (type === 'stamp') {
-                stamp.classList.toggle('hidden');
-                setTimeout(() => stamp.classList.toggle('translate-y-full'), 10);
-                mypage.classList.add('hidden', 'translate-y-full');
-                renderStamps();
+            togglePanel(null);
+            document.getElementById('nav-card').classList.remove('hidden');
+            updateNav();
+            drawRoute();
+            
+            speak("散歩を開始します。最初の目的地、" + state.currentRoute[0].name + "へ向かってください。");
+        }
+
+        function updateNav() {
+            if (!state.isWalking || !state.currentRoute[state.currentStep]) return;
+
+            const target = state.currentRoute[state.currentStep];
+            document.getElementById('nav-target').innerText = target.name;
+            
+            const dist = getDistance(state.pos, [target.lat, target.lng]);
+            document.getElementById('nav-dist').innerText = `あと ${Math.round(dist)}m`;
+            
+            // Arrow rotation logic (relative to heading)
+            const angle = getAngle(state.pos, [target.lat, target.lng]);
+            const arrowEl = document.getElementById('nav-arrow');
+            arrowEl.style.transform = `rotate(${angle - state.heading}deg)`;
+            
+            if (dist < 25) {
+                reachStep();
+            }
+        }
+
+        function reachStep() {
+            const spot = state.currentRoute[state.currentStep];
+            speak(spot.name + "に到着しました。");
+            
+            if (!state.stamps.includes(spot.name)) {
+                state.stamps.push(spot.name);
+            }
+            
+            state.currentStep++;
+            
+            if (state.currentStep >= state.currentRoute.length) {
+                finishWalk();
             } else {
-                mypage.classList.toggle('hidden');
-                setTimeout(() => mypage.classList.toggle('translate-y-full'), 10);
-                stamp.classList.add('hidden', 'translate-y-full');
-                updateStats();
+                speak("次の目的地は、" + state.currentRoute[state.currentStep].name + "です。");
+                updateNav();
             }
         }
 
-        function renderStamps() {
-            const grid = document.getElementById('stamp-grid');
-            if (!grid) return;
-            grid.innerHTML = '';
-            for (let i = 0; i < 8; i++) {
-                const div = document.createElement('div');
-                div.className = `stamp-card ${state.stamps.includes(i) ? 'active' : ''}`;
-                div.innerHTML = state.stamps.includes(i) ? '<i data-lucide="check" class="text-accent"></i>' : '';
-                grid.appendChild(div);
+        function finishWalk() {
+            state.isWalking = false;
+            document.getElementById('nav-card').classList.add('hidden');
+            if (routePolyline) map.removeLayer(routePolyline);
+            
+            speak("お疲れ様でした。散歩が完了しました。パレットが彩られました。");
+            
+            // Check Seasonal Titles
+            if (state.mode === 'spring' && state.stamps.length >= 3) {
+                addTitle("春のパレット職人");
             }
-            lucide.createIcons();
+            if (state.mode === 'collapse') {
+                addTitle("虚無を越えし者");
+            }
+            
+            saveProgress();
+            alert("散歩完了！記録が保存されました。");
+            togglePanel('trophy');
         }
 
-        function updateStats() {
-            document.getElementById('stat-distance').innerText = `${state.totalDistance.toFixed(2)} km`;
-            
-            const level = getCatLevel();
-            document.getElementById('cat-level-name').innerText = ["", "黒猫の影", "人懐っこい黒猫", "旅の相棒"][level];
-            document.getElementById('cat-level-desc').innerText = [
-                "", 
-                "まだ遠くから見守っています...", 
-                "少しずつ心を開いてくれているようです。時々鳴き声が聞こえます。", 
-                "あなたの後ろをトコトコとついてくるようになりました！"
-            ][level];
-            document.getElementById('cat-gauge').style.width = `${Math.min((state.totalDistance / 15) * 100, 100)}%`;
-            document.getElementById('cat-heart').classList.toggle('hidden', level < 3);
-            
-            const seasonalTrophies = document.getElementById('seasonal-trophies');
-            if (seasonalTrophies) {
-                seasonalTrophies.innerHTML = '';
-                SEASONS.forEach(s => {
-                    if (state.seasonalStats[s.id] >= 3) {
-                        const div = document.createElement('div');
-                        div.className = "p-3 bg-accent/10 rounded-xl text-accent font-bold text-xs flex items-center justify-center gap-2";
-                        div.innerHTML = `<i data-lucide="sparkles" size="14"></i> ${s.title}`;
-                        seasonalTrophies.appendChild(div);
+        // --- Helpers ---
+        function getDistance(p1, p2) {
+            const R = 6371e3;
+            const φ1 = p1[0] * Math.PI/180;
+            const φ2 = p2[0] * Math.PI/180;
+            const Δφ = (p2[0]-p1[0]) * Math.PI/180;
+            const Δλ = (p2[1]-p1[1]) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function getAngle(p1, p2) {
+            const dy = p2[0] - p1[0];
+            const dx = Math.cos(Math.PI/180 * p1[0]) * (p2[1] - p1[1]);
+            return Math.atan2(dx, dy) * 180 / Math.PI;
+        }
+
+        function drawRoute() {
+            if (routePolyline) map.removeLayer(routePolyline);
+            const pts = [[state.pos[0], state.pos[1]], ...state.currentRoute.map(r => [r.lat, r.lng])];
+            routePolyline = L.polyline(pts, { 
+                color: 'var(--accent)', 
+                weight: 6, 
+                dashArray: '12, 12',
+                opacity: 0.6
+            }).addTo(map);
+            map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+        }
+
+        function speak(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'ja-JP';
+            msg.rate = 1.0;
+            window.speechSynthesis.speak(msg);
+        }
+
+        // --- Update Loop ---
+        async function updateLoop() {
+            if (!state.isInitialized) return;
+
+            try {
+                const pos = await getCurrentPosition();
+                const newPos = [pos.coords.latitude, pos.coords.longitude];
+                
+                if (state.pos) {
+                    const d = getDistance(state.pos, newPos);
+                    if (d > 1.5) { // 1.5m以上移動
+                        state.distance += d / 1000;
+                        state.lastActivity = Date.now();
+                        state.pos = newPos;
+                        userMarker.setLatLng(newPos);
+                        if (!state.isWalking) map.panTo(newPos);
                     }
+                }
+
+                if (state.isWalking) {
+                    updateNav();
+                    
+                    // 1-Minute Rule for Collapse Mode
+                    if (state.mode === 'collapse') {
+                        if (Date.now() - state.lastActivity > 60000) {
+                            alert("活動が停止したため、システムが強制終了されました。");
+                            location.reload();
+                        }
+                    }
+                }
+
+                updateStatsUI();
+                updateCat();
+            } catch (e) { console.error("Update loop error", e); }
+        }
+
+        function updateCat() {
+            const cat = document.getElementById('cat-companion');
+            if (state.distance >= 15) {
+                cat.classList.remove('hidden');
+                document.getElementById('cat-heart').classList.remove('hidden');
+                // Simple follow logic: offset from center
+                cat.style.left = '50%';
+                cat.style.top = '65%';
+            }
+        }
+
+        // --- UI Logic ---
+        function togglePanel(id) {
+            const panels = ['plan-panel', 'rally-panel', 'trophy-panel'];
+            panels.forEach(p => {
+                const el = document.getElementById(p);
+                const tab = document.getElementById(`tab-${p.split('-')[0]}`);
+                if (p === `${id}-panel`) {
+                    el.classList.remove('hidden');
+                    setTimeout(() => {
+                        el.classList.remove('panel-hidden');
+                        el.classList.add('panel-visible');
+                    }, 10);
+                    if (tab) tab.querySelector('i').classList.add('text-accent');
+                } else {
+                    el.classList.remove('panel-visible');
+                    el.classList.add('panel-hidden');
+                    setTimeout(() => el.classList.add('hidden'), 500);
+                    if (tab) tab.querySelector('i').classList.remove('text-accent');
+                }
+            });
+        }
+
+        async function showRally() {
+            togglePanel('rally');
+            const list = document.getElementById('rally-list');
+            list.innerHTML = '<div class="flex justify-center p-10"><i data-lucide="loader" class="animate-spin text-accent"></i></div>';
+            lucide.createIcons();
+            
+            const query = `[out:json];node(around:1500,${state.pos[0]},${state.pos[1]})["tourism"~"attraction|viewpoint|museum|gallery|park"];out 15;`;
+            try {
+                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                
+                list.innerHTML = '';
+                if (!data.elements || data.elements.length === 0) {
+                    list.innerHTML = '<p class="text-center text-sm opacity-40 p-10">スポットが見つかりませんでした。</p>';
+                    return;
+                }
+
+                data.elements.forEach(e => {
+                    const name = e.tags.name || "名もなき場所";
+                    const dist = Math.round(getDistance(state.pos, [e.lat, e.lon]));
+                    const div = document.createElement('div');
+                    div.className = "p-5 bg-black/5 rounded-3xl flex justify-between items-center group active:bg-black/10 transition-colors";
+                    div.innerHTML = `
+                        <div>
+                            <p class="text-sm font-bold">${name}</p>
+                            <p class="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-0.5">${dist}m away</p>
+                        </div>
+                        <button onclick="addToRoute(${e.lat}, ${e.lon}, '${name}')" class="w-10 h-10 bg-accent/10 text-accent rounded-full flex items-center justify-center">
+                            <i data-lucide="plus" size="18"></i>
+                        </button>
+                    `;
+                    list.appendChild(div);
                 });
+                lucide.createIcons();
+            } catch (e) {
+                list.innerHTML = '<p class="text-center text-sm text-red-400 p-10">データの取得に失敗しました。</p>';
             }
+        }
 
-            if (state.isCollapseMode) {
-                document.getElementById('stat-collapse').innerText = `${Math.min(state.totalDistance * 10, 100).toFixed(0)}%`;
-            }
-
+        function addToRoute(lat, lng, name) {
+            state.currentRoute.push({ lat, lng, name });
+            speak(name + "をルートに追加しました。");
+            const btn = event.currentTarget;
+            btn.innerHTML = '<i data-lucide="check" size="18"></i>';
+            btn.classList.replace('bg-accent/10', 'bg-green-500/10');
+            btn.classList.replace('text-accent', 'text-green-500');
             lucide.createIcons();
         }
 
+        function updateStatsUI() {
+            document.getElementById('stat-dist-val').innerText = `${state.distance.toFixed(2)} km`;
+            document.getElementById('stat-cat-val').innerText = `Lv. ${Math.floor(state.distance / 5) + 1}`;
+            
+            const list = document.getElementById('title-list');
+            list.innerHTML = '';
+            state.titles.forEach(t => {
+                const span = document.createElement('span');
+                span.className = "px-4 py-1.5 bg-accent/10 text-accent rounded-full text-[10px] font-black uppercase tracking-widest border border-accent/20";
+                span.innerText = t;
+                list.appendChild(span);
+            });
+        }
+
+        function addTitle(title) {
+            if (!state.titles.includes(title)) {
+                state.titles.push(title);
+                speak("新しい称号、" + title + "を獲得しました。");
+                saveProgress();
+            }
+        }
+
+        // --- Collapse Mode Timer ---
         function startCollapseTimer() {
             collapseTimer = setTimeout(() => {
-                state.isCollapseMode = !state.isCollapseMode;
-                applyTheme();
-                saveState();
-                alert(state.isCollapseMode ? "システムが崩壊しました..." : "世界が再構築されました。");
+                setMode('collapse');
+                speak("システム崩壊。虚無の散歩を開始します。");
+                generateCollapseRoute();
             }, 2000);
         }
 
@@ -580,32 +785,41 @@
             clearTimeout(collapseTimer);
         }
 
-        function centerMap() {
-            if (state.lastPos && map) map.setCenter(state.lastPos);
+        // --- Storage ---
+        function saveProgress() {
+            localStorage.setItem('sanpo_palette_v3', JSON.stringify({
+                distance: state.distance,
+                stamps: state.stamps,
+                titles: state.titles
+            }));
         }
 
-        function saveState() {
-            localStorage.setItem('sanpo_palette_state', JSON.stringify(state));
+        function loadProgress() {
+            const data = localStorage.getItem('sanpo_palette_v3');
+            if (data) {
+                const parsed = JSON.parse(data);
+                state.distance = parsed.distance || 0;
+                state.stamps = parsed.stamps || [];
+                state.titles = parsed.titles || [];
+                updateStatsUI();
+            }
         }
 
-        function loadState() {
-            const saved = localStorage.getItem('sanpo_palette_state');
-            if (saved) state = { ...state, ...JSON.parse(saved) };
-        }
+        // Start Walk Button
+        document.getElementById('start-walk-btn').addEventListener('click', () => {
+            if (state.currentRoute.length === 0) {
+                generateRoute('circular');
+            } else {
+                // Add start point as final if not present
+                if (state.currentRoute[state.currentRoute.length-1].name !== "スタート地点") {
+                    state.currentRoute.push({ lat: state.pos[0], lng: state.pos[1], name: "スタート地点" });
+                }
+                startWalk();
+            }
+        });
 
-        function handleGeoError(err) {
-            console.warn(`ERROR(${err.code}): ${err.message}`);
-            const status = document.getElementById('loading-status');
-            if (status) status.innerText = "位置情報の取得に失敗しました。設定を確認してください。";
-        }
-
-        window.onload = () => {
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY || ''}&callback=init`;
-            script.async = true;
-            document.head.appendChild(script);
-            lucide.createIcons();
-        };
+        // Initialize Lucide
+        lucide.createIcons();
     </script>
 </body>
 </html>
