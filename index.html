@@ -10,104 +10,97 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     
     <style>
-        /* --- CSS Variables & Themes --- */
+        /* --- テーマ設定 (コントラスト重視) --- */
         :root {
-            --bg: #FFFDF5; /* Light Cream */
+            --bg: #FFFDF5;
             --card: #FFFFFF;
             --text: #1A1A1A;
             --accent: #FF8E9E; /* Sakura Pink */
-            --accent-secondary: #98FB98; /* Fresh Green */
-            --nav-bg: rgba(255, 255, 255, 0.9);
-            --border: rgba(0, 0, 0, 0.1);
+            --accent-soft: rgba(255, 142, 158, 0.1);
+            --nav-bg: rgba(255, 255, 255, 0.95);
         }
 
         .theme-midnight {
-            --bg: #0A0A20; /* Deep Navy */
-            --card: #151535; /* Darker Navy */
+            --bg: #0A0A20;
+            --card: #151535;
             --text: #FFFFFF;
             --accent: #FFD700; /* Gold */
-            --accent-secondary: #4A90E2;
-            --nav-bg: rgba(21, 21, 53, 0.95);
-            --border: rgba(255, 255, 255, 0.2);
+            --accent-soft: rgba(255, 215, 0, 0.15);
+            --nav-bg: rgba(10, 10, 32, 0.98);
         }
 
         .theme-collapse {
             --bg: #2B1D1D; /* Rust/Sepia */
             --card: #3D2B2B;
             --text: #D4A373; /* Aged Paper */
-            --accent: #8B4513; /* Saddle Brown */
-            --accent-secondary: #5D4037;
-            --nav-bg: rgba(43, 29, 29, 0.95);
-            --border: rgba(212, 163, 115, 0.3);
+            --accent: #FF4500; /* Orange Red */
+            --accent-soft: rgba(255, 69, 0, 0.2);
+            --nav-bg: rgba(43, 29, 29, 0.98);
         }
 
-        /* --- Base Styles --- */
         body {
             font-family: 'Noto Sans JP', sans-serif;
             background-color: var(--bg);
             color: var(--text);
-            transition: background-color 0.5s, color 0.5s;
+            transition: background-color 0.4s, color 0.4s;
             overflow: hidden;
             height: 100vh;
-            width: 100vw;
             margin: 0;
-            touch-action: manipulation;
         }
 
-        #map-wrapper {
+        /* --- マップの回転制御 --- */
+        #map-container {
             position: absolute;
             inset: 0;
             z-index: 1;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            will-change: transform;
+            /* 回転が必要な時だけJSで制御。デフォルトは回転なし */
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        #map {
-            height: 100%;
-            width: 100%;
-        }
+        #map { height: 100%; width: 100%; }
 
-        /* --- UI Components --- */
+        /* --- UIパーツ --- */
         .glass-panel {
             background: var(--card);
-            border: 1px solid var(--border);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-            backdrop-filter: blur(12px);
-            border-radius: 24px;
+            border: 2px solid rgba(0,0,0,0.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-radius: 28px;
             color: var(--text);
         }
 
-        .nav-bar {
-            background: var(--nav-bg);
-            border-top: 1px solid var(--border);
-            backdrop-filter: blur(16px);
+        .theme-midnight .glass-panel {
+            border-color: rgba(255,255,255,0.1);
         }
 
-        .btn-primary {
+        .theme-collapse .glass-panel {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.3);
+        }
+
+        .nav-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            opacity: 0.4;
+            transition: opacity 0.3s, transform 0.2s;
+        }
+        .nav-button.active { opacity: 1; transform: translateY(-4px); }
+
+        .btn-main {
             background: var(--accent);
             color: #FFF;
-            padding: 12px 24px;
+            padding: 14px 28px;
             border-radius: 999px;
-            font-weight: 700;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            transition: transform 0.2s;
+            font-weight: 900;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
         }
-        .btn-primary:active { transform: scale(0.95); }
+        .theme-midnight .btn-main { color: #0A0A20; }
 
-        .theme-midnight .btn-primary { color: #0A0A20; }
-
-        /* --- Animations --- */
-        .panel-slide-up {
-            transform: translateY(0);
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .panel-hidden {
-            transform: translateY(120%);
-        }
-
+        /* --- 特殊エフェクト --- */
         .loading-screen {
             position: fixed;
             inset: 0;
@@ -120,251 +113,221 @@
             text-align: center;
         }
 
-        /* Leaflet Overrides */
-        .theme-midnight .leaflet-tile {
-            filter: invert(100%) hue-rotate(180deg) brightness(0.6) contrast(1.2);
+        .leaflet-tile {
+            transition: filter 0.5s;
         }
-        .theme-collapse .leaflet-tile {
-            filter: sepia(1) saturate(0.5) brightness(0.8);
+        .theme-midnight .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.2); }
+        .theme-collapse .leaflet-tile { filter: sepia(1) saturate(0.6) brightness(0.8) contrast(1.1); }
+
+        .panel-transition {
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .leaflet-vignette {
-            position: absolute;
-            inset: 0;
-            z-index: 1000;
-            pointer-events: none;
-            box-shadow: inset 0 0 100px rgba(0,0,0,0.3);
-        }
-
-        .glitch {
-            animation: glitch-anim 0.2s infinite;
-        }
+        .glitch { animation: glitch-anim 0.3s infinite; }
         @keyframes glitch-anim {
             0% { transform: translate(0); }
-            20% { transform: translate(-2px, 1px); }
-            40% { transform: translate(2px, -1px); }
-            60% { transform: translate(-1px, -2px); }
-            80% { transform: translate(1px, 2px); }
+            25% { transform: translate(-2px, 2px); }
+            50% { transform: translate(2px, -2px); }
+            75% { transform: translate(-1px, -1px); }
             100% { transform: translate(0); }
         }
     </style>
 </head>
 <body class="theme-spring">
 
-    <!-- Loading Screen -->
+    <!-- 起動画面 (パーミッション解決用) -->
     <div id="loading-screen" class="loading-screen">
-        <div class="mb-8">
-            <i data-lucide="palette" class="w-20 h-20 text-[var(--accent)] animate-pulse"></i>
+        <div class="mb-8 relative">
+            <i data-lucide="palette" class="w-24 h-24 text-[var(--accent)] animate-bounce"></i>
+            <i data-lucide="sparkles" class="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 animate-pulse"></i>
         </div>
-        <h1 class="text-3xl font-bold mb-4 tracking-widest">SANPO PALETTE</h1>
-        <p class="text-sm opacity-70 mb-12">散歩を彩る、あなただけのパレット</p>
+        <h1 class="text-4xl font-black mb-4 tracking-tighter">SANPO PALETTE</h1>
+        <p class="text-sm opacity-60 mb-12 font-medium">散歩を彩る、あなただけのパレット</p>
         
-        <button id="btn-start-app" class="btn-primary flex items-center gap-3 text-lg px-8 py-4">
+        <button id="btn-init" class="btn-main flex items-center gap-3 text-xl px-10 py-5">
             <i data-lucide="play" class="fill-current"></i>
-            アプリを起動
+            パレットを広げる
         </button>
-        
-        <p id="loading-status" class="mt-6 text-xs opacity-50">位置情報とセンサーの許可が必要です</p>
+        <p id="status-text" class="mt-6 text-xs opacity-40 font-bold">位置情報の許可が必要です</p>
     </div>
 
-    <!-- Header Overlay -->
+    <!-- ヘッダー -->
     <header class="fixed top-0 left-0 right-0 p-6 z-50 flex justify-between items-center pointer-events-none">
-        <div class="glass-panel px-5 py-2.5 flex items-center gap-4 pointer-events-auto">
-            <div id="mode-indicator" class="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-white shadow-inner">
-                <i data-lucide="sun" size="20"></i>
+        <div class="glass-panel px-6 py-3 flex items-center gap-4 pointer-events-auto shadow-xl">
+            <div id="mode-icon" class="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-white shadow-inner">
+                <i data-lucide="sun" size="22"></i>
             </div>
             <div>
-                <p class="text-[10px] font-black uppercase tracking-widest opacity-50">Current Palette</p>
-                <p class="text-sm font-bold" id="palette-label">March Sakura</p>
+                <p class="text-[10px] font-black uppercase tracking-widest opacity-40">Current Mode</p>
+                <p class="text-sm font-black" id="mode-label">March Sakura</p>
             </div>
         </div>
         
-        <div id="btn-collapse" class="w-12 h-12 glass-panel flex items-center justify-center pointer-events-auto cursor-pointer active:scale-90 transition-transform">
-            <i data-lucide="skull" class="text-gray-400"></i>
+        <div id="skull-trigger" class="w-14 h-14 glass-panel flex items-center justify-center pointer-events-auto cursor-pointer active:scale-90 transition-transform shadow-xl">
+            <i data-lucide="skull" id="skull-icon" class="text-gray-300"></i>
         </div>
     </header>
 
-    <!-- Main Map -->
+    <!-- マップエリア -->
     <main class="relative w-full h-full">
-        <div id="map-wrapper">
+        <div id="map-container">
             <div id="map"></div>
         </div>
-        <div class="leaflet-vignette"></div>
 
-        <!-- Navigation Card -->
+        <!-- ナビゲーションカード -->
         <div id="nav-card" class="fixed top-28 left-6 right-6 z-40 hidden">
-            <div class="glass-panel p-5 flex items-center gap-5">
-                <div id="nav-arrow" class="w-16 h-16 bg-[var(--accent)] bg-opacity-10 rounded-2xl flex items-center justify-center text-[var(--accent)]">
-                    <i data-lucide="arrow-up" size="36"></i>
+            <div class="glass-panel p-6 flex items-center gap-6 shadow-2xl">
+                <div id="nav-arrow" class="w-16 h-16 bg-[var(--accent-soft)] rounded-2xl flex items-center justify-center text-[var(--accent)] transition-transform duration-500">
+                    <i data-lucide="arrow-up" size="40"></i>
                 </div>
-                <div class="flex-1">
-                    <p class="text-[10px] font-black uppercase opacity-50">Next Spot</p>
-                    <p class="text-lg font-bold truncate" id="nav-target-name">目的地</p>
-                    <p class="text-sm font-bold opacity-70" id="nav-distance-label">あと 0m</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Cat Companion -->
-        <div id="cat-companion" class="fixed pointer-events-none z-40 hidden transition-all duration-1000">
-            <div class="relative">
-                <i data-lucide="cat" class="text-black w-12 h-12 drop-shadow-2xl"></i>
-                <div id="cat-heart" class="absolute -top-4 -right-2 text-red-500 hidden">
-                    <i data-lucide="heart" size="16" class="fill-current animate-ping"></i>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-[10px] font-black uppercase opacity-40 tracking-widest">Next Destination</p>
+                    <p class="text-xl font-black truncate" id="target-name">目的地</p>
+                    <p class="text-sm font-bold text-[var(--accent)]" id="dist-label">あと 0m</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- UI Panels -->
-    <div id="panel-container" class="fixed bottom-24 left-4 right-4 z-50 pointer-events-none">
+    <!-- UIパネル -->
+    <div id="panel-container" class="fixed bottom-28 left-4 right-4 z-50 pointer-events-none">
         
-        <!-- Plan Panel -->
-        <div id="panel-plan" class="glass-panel p-8 panel-hidden pointer-events-auto hidden">
-            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
-                <i data-lucide="map" class="text-[var(--accent)]"></i> 散歩プラン
+        <!-- PLAN -->
+        <div id="panel-plan" class="glass-panel p-8 panel-transition translate-y-[120%] pointer-events-auto hidden">
+            <h2 class="text-2xl font-black mb-8 flex items-center gap-3">
+                <i data-lucide="map-pin" class="text-[var(--accent)]"></i> 散歩を計画する
             </h2>
             <div class="space-y-8">
                 <div>
                     <div class="flex justify-between mb-4">
-                        <label class="text-xs font-black opacity-50 uppercase tracking-widest">散歩時間</label>
-                        <span id="label-time" class="text-lg font-black text-[var(--accent)]">60 分</span>
+                        <label class="text-xs font-black opacity-40 uppercase tracking-widest">歩く時間</label>
+                        <span id="time-display" class="text-xl font-black text-[var(--accent)]">60 分</span>
                     </div>
-                    <input type="range" id="input-time" min="30" max="120" step="15" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[var(--accent)]">
+                    <input type="range" id="time-input" min="15" max="120" step="15" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[var(--accent)]">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <button id="btn-gen-circular" class="p-5 bg-black bg-opacity-5 rounded-3xl text-center hover:bg-opacity-10 transition-all">
+                    <button id="btn-auto-route" class="p-6 bg-[var(--accent-soft)] rounded-3xl text-center active:scale-95 transition-transform">
                         <i data-lucide="refresh-cw" class="mx-auto mb-2 text-[var(--accent)]"></i>
-                        <p class="text-xs font-bold">おまかせ周回</p>
+                        <p class="text-xs font-black">おまかせ周回</p>
                     </button>
-                    <button id="btn-open-rally" class="p-5 bg-black bg-opacity-5 rounded-3xl text-center hover:bg-opacity-10 transition-all">
-                        <i data-lucide="list" class="mx-auto mb-2 text-[var(--accent)]"></i>
-                        <p class="text-xs font-bold">スポット選択</p>
+                    <button id="btn-rally-list" class="p-6 bg-black/5 rounded-3xl text-center active:scale-95 transition-transform">
+                        <i data-lucide="list" class="mx-auto mb-2 text-gray-400"></i>
+                        <p class="text-xs font-black">スポット選択</p>
                     </button>
                 </div>
-                <button id="btn-start-walk" class="w-full btn-primary py-4 text-lg">散歩を開始する</button>
+                <button id="btn-start-walk" class="w-full btn-main py-5 text-lg shadow-2xl">散歩を開始する</button>
             </div>
         </div>
 
-        <!-- Rally Panel -->
-        <div id="panel-rally" class="glass-panel p-8 panel-hidden pointer-events-auto hidden">
+        <!-- RALLY -->
+        <div id="panel-rally" class="glass-panel p-8 panel-transition translate-y-[120%] pointer-events-auto hidden">
             <div class="flex justify-between items-center mb-8">
-                <h2 class="text-2xl font-bold">周辺スポット</h2>
-                <button id="btn-close-rally" class="w-10 h-10 bg-black bg-opacity-5 rounded-full flex items-center justify-center">
-                    <i data-lucide="x" size="20"></i>
-                </button>
+                <h2 class="text-2xl font-black">周辺のスポット</h2>
+                <button id="btn-close-rally" class="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center"><i data-lucide="x" size="20"></i></button>
             </div>
-            <div id="list-rally" class="space-y-4 max-h-80 overflow-y-auto pr-2">
-                <!-- Spots injected here -->
+            <div id="rally-items" class="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+                <!-- JSで注入 -->
             </div>
         </div>
 
-        <!-- Trophy Panel -->
-        <div id="panel-trophy" class="glass-panel p-8 panel-hidden pointer-events-auto hidden">
-            <h2 class="text-2xl font-bold mb-8">旅の記録</h2>
+        <!-- TROPHIES -->
+        <div id="panel-trophy" class="glass-panel p-8 panel-transition translate-y-[120%] pointer-events-auto hidden">
+            <h2 class="text-2xl font-black mb-8">コレクション</h2>
             <div class="grid grid-cols-2 gap-4 mb-8">
-                <div class="p-5 bg-black bg-opacity-5 rounded-3xl text-center">
-                    <p class="text-[10px] font-black opacity-50 uppercase mb-1 tracking-widest">Distance</p>
-                    <p class="text-2xl font-black font-mono" id="val-distance">0.00 km</p>
+                <div class="p-6 bg-black/5 rounded-3xl text-center">
+                    <p class="text-[10px] font-black opacity-40 uppercase mb-1">Total</p>
+                    <p class="text-2xl font-black font-mono" id="stat-dist">0.00 km</p>
                 </div>
-                <div class="p-5 bg-black bg-opacity-5 rounded-3xl text-center">
-                    <p class="text-[10px] font-black opacity-50 uppercase mb-1 tracking-widest">Cat Intimacy</p>
-                    <p class="text-2xl font-black font-mono" id="val-cat">Lv. 1</p>
+                <div class="p-6 bg-black/5 rounded-3xl text-center">
+                    <p class="text-[10px] font-black opacity-40 uppercase mb-1">Intimacy</p>
+                    <p class="text-2xl font-black font-mono" id="stat-cat">Lv. 1</p>
                 </div>
             </div>
-            <div class="space-y-4">
-                <p class="text-[10px] font-black opacity-50 uppercase tracking-widest">獲得称号</p>
-                <div id="list-titles" class="flex flex-wrap gap-2">
-                    <!-- Titles injected here -->
-                </div>
+            <div id="trophy-list" class="flex flex-wrap gap-2">
+                <!-- 称号を注入 -->
             </div>
         </div>
     </div>
 
-    <!-- Bottom Navigation -->
-    <nav class="fixed bottom-0 left-0 right-0 h-24 nav-bar z-50 flex justify-around items-center px-8">
-        <button id="nav-plan" class="flex flex-col items-center gap-1.5 group">
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center group-active:scale-90 transition-transform">
-                <i data-lucide="map" class="text-gray-400 group-hover:text-[var(--accent)]"></i>
-            </div>
-            <span class="text-[10px] font-black opacity-40 uppercase tracking-widest">Plan</span>
+    <!-- 下部ナビゲーション -->
+    <nav class="fixed bottom-0 left-0 right-0 h-28 bg-[var(--nav-bg)] border-t border-black/5 z-50 flex justify-around items-center px-6 pb-4">
+        <button id="nav-plan-btn" class="nav-button active">
+            <i data-lucide="map"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest">Plan</span>
         </button>
-        <button id="nav-rally" class="flex flex-col items-center gap-1.5 group">
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center group-active:scale-90 transition-transform">
-                <i data-lucide="flag" class="text-gray-400 group-hover:text-[var(--accent)]"></i>
-            </div>
-            <span class="text-[10px] font-black opacity-40 uppercase tracking-widest">Rally</span>
+        <button id="nav-rally-btn" class="nav-button">
+            <i data-lucide="flag"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest">Rally</span>
         </button>
-        <button id="nav-trophy" class="flex flex-col items-center gap-1.5 group">
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center group-active:scale-90 transition-transform">
-                <i data-lucide="award" class="text-gray-400 group-hover:text-[var(--accent)]"></i>
-            </div>
-            <span class="text-[10px] font-black opacity-40 uppercase tracking-widest">Trophies</span>
+        <button id="nav-trophy-btn" class="nav-button">
+            <i data-lucide="award"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest">Trophies</span>
         </button>
     </nav>
 
     <script>
-        /* --- App State --- */
+        /* --- アプリ状態 --- */
         const state = {
-            mode: 'spring', // spring, midnight, collapse
+            mode: 'spring',
             isWalking: false,
             pos: null,
             heading: 0,
-            smoothedHeading: 0,
             distance: 0,
             titles: [],
-            currentRoute: [],
-            currentStep: 0,
-            lastActivity: Date.now(),
-            isInitialized: false
+            route: [],
+            step: 0,
+            isInitialized: false,
+            headingUp: false // デフォルトは回転オフ
         };
 
-        let map, userMarker, routeLine;
-        let collapseTimer;
+        let map, userMarker, routePolyline;
+        let skullTimer;
 
-        /* --- Initialization --- */
+        /* --- 初期化 --- */
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            attachEventListeners();
+            setupEventListeners();
             loadProgress();
         });
 
-        function attachEventListeners() {
-            // Start App
-            document.getElementById('btn-start-app').onclick = startApp;
+        function setupEventListeners() {
+            // 起動
+            document.getElementById('btn-init').onclick = initApp;
 
-            // Nav Tabs
-            document.getElementById('nav-plan').onclick = () => togglePanel('plan');
-            document.getElementById('nav-rally').onclick = () => togglePanel('rally');
-            document.getElementById('nav-trophy').onclick = () => togglePanel('trophy');
+            // タブ切り替え
+            document.getElementById('nav-plan-btn').onclick = () => showPanel('plan');
+            document.getElementById('nav-rally-btn').onclick = () => showPanel('rally');
+            document.getElementById('nav-trophy-btn').onclick = () => showPanel('trophy');
 
-            // Plan Actions
-            document.getElementById('input-time').oninput = (e) => {
-                document.getElementById('label-time').innerText = `${e.target.value} 分`;
+            // プラン操作
+            document.getElementById('time-input').oninput = (e) => {
+                document.getElementById('time-display').innerText = `${e.target.value} 分`;
             };
-            document.getElementById('btn-gen-circular').onclick = () => generateRoute('circular');
-            document.getElementById('btn-open-rally').onclick = () => togglePanel('rally');
+            document.getElementById('btn-auto-route').onclick = () => fetchSpots(true);
+            document.getElementById('btn-rally-list').onclick = () => showPanel('rally');
             document.getElementById('btn-start-walk').onclick = startWalk;
-            document.getElementById('btn-close-rally').onclick = () => togglePanel('plan');
+            document.getElementById('btn-close-rally').onclick = () => showPanel('plan');
 
-            // Collapse Trigger
-            const btnCollapse = document.getElementById('btn-collapse');
-            btnCollapse.onmousedown = btnCollapse.ontouchstart = startCollapseTimer;
-            btnCollapse.onmouseup = btnCollapse.ontouchend = cancelCollapseTimer;
+            // 崩壊モードトリガー
+            const trigger = document.getElementById('skull-trigger');
+            trigger.onmousedown = trigger.ontouchstart = () => {
+                skullTimer = setTimeout(() => enterCollapseMode(), 2000);
+            };
+            trigger.onmouseup = trigger.ontouchend = () => clearTimeout(skullTimer);
         }
 
-        async function startApp() {
-            const status = document.getElementById('loading-status');
+        async function initApp() {
+            const status = document.getElementById('status-text');
             status.innerText = "位置情報を取得しています...";
 
             try {
-                // 1. Geolocation
-                const pos = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                // 1. 位置情報
+                const pos = await new Promise((res, rej) => {
+                    navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true });
                 });
                 state.pos = [pos.coords.latitude, pos.coords.longitude];
 
-                // 2. Orientation (iOS requires interaction)
+                // 2. センサー (iOS対応)
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     const permission = await DeviceOrientationEvent.requestPermission();
                     if (permission === 'granted') window.addEventListener('deviceorientation', handleOrientation);
@@ -372,38 +335,29 @@
                     window.addEventListener('deviceorientation', handleOrientation);
                 }
 
-                // 3. Setup Map
-                initMap();
+                // 3. マップ構築
+                setupMap();
                 
-                // 4. Start Update Loop
-                navigator.geolocation.watchPosition(updatePosition, null, { enableHighAccuracy: true });
-                setInterval(checkInactivity, 5000);
+                // 4. 監視開始
+                navigator.geolocation.watchPosition(onPositionUpdate, null, { enableHighAccuracy: true });
 
-                // 5. Finalize
-                hideLoading();
+                // 5. 完了
+                document.getElementById('loading-screen').style.display = 'none';
                 state.isInitialized = true;
-                checkTimeMode();
-                speak("パレットが起動しました。散歩の準備をしましょう。");
+                checkTimeTheme();
+                showPanel('plan');
+                speak("パレットが準備できました。");
 
             } catch (err) {
+                status.innerText = "位置情報を許可して再読み込みしてください";
                 console.error(err);
-                status.innerText = "エラー: 位置情報を許可して再読み込みしてください";
             }
         }
 
-        function hideLoading() {
-            const screen = document.getElementById('loading-screen');
-            screen.style.opacity = '0';
-            setTimeout(() => screen.style.display = 'none', 500);
-        }
-
-        /* --- Map Logic --- */
-        function initMap() {
+        function setupMap() {
             map = L.map('map', {
                 zoomControl: false,
-                attributionControl: false,
-                dragging: true,
-                touchZoom: true
+                attributionControl: false
             }).setView(state.pos, 17);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -417,23 +371,20 @@
             }).addTo(map);
         }
 
-        function updatePosition(pos) {
+        /* --- 位置・方位更新 --- */
+        function onPositionUpdate(pos) {
             const newPos = [pos.coords.latitude, pos.coords.longitude];
-            
             if (state.pos) {
-                const d = getDistance(state.pos, newPos);
-                if (d > 2) { // 2m以上移動
+                const d = getDist(state.pos, newPos);
+                if (d > 2) {
                     state.distance += d / 1000;
                     state.pos = newPos;
-                    state.lastActivity = Date.now();
                     userMarker.setLatLng(newPos);
                     if (!state.isWalking) map.panTo(newPos);
-                    updateStatsUI();
-                    updateCat();
+                    updateStats();
                 }
             }
-
-            if (state.isWalking) updateNavigation();
+            if (state.isWalking) updateNav();
         }
 
         function handleOrientation(e) {
@@ -441,185 +392,190 @@
             if (e.webkitCompassHeading) heading = e.webkitCompassHeading;
             else if (e.alpha) heading = 360 - e.alpha;
 
-            // Throttling & Smoothing
-            const delta = Math.abs(heading - state.heading);
-            if (delta > 5) {
+            // 5度以上の変化があった時だけ更新（ぐるぐる防止）
+            if (Math.abs(heading - state.heading) > 5) {
                 state.heading = heading;
-                // Smoothing effect using CSS transition on map-wrapper
-                if (state.isWalking) {
-                    document.getElementById('map-wrapper').style.transform = `rotate(${-heading}deg)`;
+                if (state.isWalking && state.headingUp) {
+                    document.getElementById('map-container').style.transform = `rotate(${-heading}deg)`;
                 }
             }
         }
 
-        /* --- Routing Logic --- */
-        async function generateRoute(type) {
-            const time = parseInt(document.getElementById('input-time').value);
-            const radius = (time / 60) * 1500; // ~4km/h -> 1.5km radius
+        /* --- スポット取得 (Overpass API) --- */
+        async function fetchSpots(isAuto = false) {
+            const time = parseInt(document.getElementById('time-input').value);
+            const radius = (time / 60) * 1200; // 1時間で約1.2km圏内
             
-            speak("周辺のスポットを探しています。");
+            speak("スポットを探しています。");
             
-            const query = `[out:json];node(around:${radius},${state.pos[0]},${state.pos[1]})["tourism"~"attraction|viewpoint|museum|gallery|park"];out 5;`;
+            const query = `[out:json];node(around:${radius},${state.pos[0]},${state.pos[1]})["tourism"~"attraction|viewpoint|museum|gallery|park"];out 10;`;
+            
             try {
                 const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
                 const data = await res.json();
                 
                 if (!data.elements || data.elements.length === 0) {
-                    alert("スポットが見つかりませんでした。");
+                    alert("近くにスポットが見つかりませんでした。");
                     return;
                 }
 
-                state.currentRoute = data.elements.map(e => ({
-                    lat: e.lat,
-                    lng: e.lon,
-                    name: e.tags.name || "名もなき場所"
-                }));
-                
-                // Add start point to end for circular
-                state.currentRoute.push({ lat: state.pos[0], lng: state.pos[1], name: "スタート地点" });
-                
-                togglePanel('plan');
-                alert("ルートが生成されました！「散歩を開始」を押してください。");
+                if (isAuto) {
+                    // 自動ルート生成
+                    state.route = data.elements.slice(0, 3).map(e => ({
+                        lat: e.lat, lng: e.lon, name: e.tags.name || "名もなき場所"
+                    }));
+                    state.route.push({ lat: state.pos[0], lng: state.pos[1], name: "スタート地点" });
+                    alert("ルートを作成しました！「散歩を開始」を押してください。");
+                } else {
+                    // リスト表示
+                    renderRally(data.elements);
+                }
             } catch (err) {
-                console.error(err);
-                alert("データ取得に失敗しました。");
+                alert("通信エラーが発生しました。");
             }
         }
 
+        /* --- 散歩ロジック --- */
         function startWalk() {
-            if (state.currentRoute.length === 0) {
-                alert("まずはプランを作成してください。");
-                return;
-            }
+            if (state.route.length === 0) return alert("プランを作成してください");
+            
             state.isWalking = true;
-            state.currentStep = 0;
-            togglePanel(null);
+            state.step = 0;
+            state.headingUp = true; // 散歩中だけ回転を有効化
+            
+            showPanel(null);
             document.getElementById('nav-card').classList.remove('hidden');
+            
             drawRoute();
-            updateNavigation();
-            speak("散歩を開始します。最初の目的地へ向かってください。");
+            updateNav();
+            speak("散歩を開始します。最初の目的地へ向かいましょう。");
         }
 
-        function updateNavigation() {
-            if (!state.isWalking || !state.currentRoute[state.currentStep]) return;
+        function updateNav() {
+            if (!state.isWalking || !state.route[state.step]) return;
 
-            const target = state.currentRoute[state.currentStep];
-            const dist = getDistance(state.pos, [target.lat, target.lng]);
+            const target = state.route[state.step];
+            const d = getDist(state.pos, [target.lat, target.lng]);
             
-            document.getElementById('nav-target-name').innerText = target.name;
-            document.getElementById('nav-distance-label').innerText = `あと ${Math.round(dist)}m`;
+            document.getElementById('target-name').innerText = target.name;
+            document.getElementById('dist-label').innerText = `あと ${Math.round(d)}m`;
 
-            // Arrow rotation relative to heading
+            // 矢印の向き
             const angle = getAngle(state.pos, [target.lat, target.lng]);
             document.getElementById('nav-arrow').style.transform = `rotate(${angle - state.heading}deg)`;
 
-            if (dist < 30) {
-                reachStep();
-            }
-        }
-
-        function reachStep() {
-            const spot = state.currentRoute[state.currentStep];
-            speak(`${spot.name}に到着しました。`);
-            state.currentStep++;
-
-            if (state.currentStep >= state.currentRoute.length) {
-                finishWalk();
-            } else {
-                updateNavigation();
+            if (d < 30) {
+                speak(`${target.name}に到着しました。`);
+                state.step++;
+                if (state.step >= state.route.length) finishWalk();
+                else updateNav();
             }
         }
 
         function finishWalk() {
             state.isWalking = false;
+            state.headingUp = false;
+            document.getElementById('map-container').style.transform = `rotate(0deg)`;
             document.getElementById('nav-card').classList.add('hidden');
-            if (routeLine) map.removeLayer(routeLine);
-            document.getElementById('map-wrapper').style.transform = `rotate(0deg)`;
+            if (routePolyline) map.removeLayer(routePolyline);
             
-            speak("お疲れ様でした。散歩が完了しました。");
-            if (state.mode === 'spring') addTitle("春のパレット職人");
+            speak("お疲れ様でした。散歩完了です。");
             if (state.mode === 'collapse') addTitle("虚無を越えし者");
+            else addTitle("春のパレット職人");
             
             saveProgress();
-            togglePanel('trophy');
+            showPanel('trophy');
         }
 
-        /* --- UI & Themes --- */
-        function togglePanel(id) {
+        /* --- UI制御 --- */
+        function showPanel(id) {
             const panels = ['plan', 'rally', 'trophy'];
             panels.forEach(p => {
                 const el = document.getElementById(`panel-${p}`);
-                const nav = document.getElementById(`nav-${p}`);
-                if (p === id && el.classList.contains('hidden')) {
+                const btn = document.getElementById(`nav-${p}-btn`);
+                if (p === id) {
                     el.classList.remove('hidden');
-                    setTimeout(() => el.classList.replace('panel-hidden', 'panel-slide-up'), 10);
-                    nav.querySelector('i').classList.add('text-[var(--accent)]');
+                    setTimeout(() => el.style.transform = 'translateY(0)', 10);
+                    btn.classList.add('active');
                 } else {
-                    el.classList.replace('panel-slide-up', 'panel-hidden');
-                    setTimeout(() => el.classList.add('hidden'), 400);
-                    nav.querySelector('i').classList.remove('text-[var(--accent)]');
+                    el.style.transform = 'translateY(120%)';
+                    setTimeout(() => el.classList.add('hidden'), 500);
+                    btn.classList.remove('active');
                 }
             });
-            if (id === 'rally') renderRallyList();
+            if (id === 'rally') fetchSpots(false);
         }
 
-        function checkTimeMode() {
-            const hour = new Date().getHours();
-            if (hour >= 18 || hour < 5) setMode('midnight');
-            else setMode('spring');
+        function renderRally(elements) {
+            const container = document.getElementById('rally-items');
+            container.innerHTML = '';
+            elements.forEach(e => {
+                const name = e.tags.name || "名もなき場所";
+                const d = Math.round(getDist(state.pos, [e.lat, e.lon]));
+                const item = document.createElement('div');
+                item.className = "p-5 bg-black/5 rounded-3xl flex justify-between items-center";
+                item.innerHTML = `
+                    <div>
+                        <p class="font-black text-sm">${name}</p>
+                        <p class="text-[10px] font-bold opacity-40">${d}m</p>
+                    </div>
+                    <button onclick="addToRoute(${e.lat}, ${e.lon}, '${name}')" class="text-[var(--accent)] font-black text-xs">+ 追加</button>
+                `;
+                container.appendChild(item);
+            });
         }
 
-        function setMode(mode) {
+        window.addToRoute = (lat, lng, name) => {
+            state.route.push({ lat, lng, name });
+            speak(`${name}を追加しました。`);
+        };
+
+        function checkTimeTheme() {
+            const h = new Date().getHours();
+            if (h >= 18 || h < 5) setTheme('midnight');
+            else setTheme('spring');
+        }
+
+        function setTheme(mode) {
             state.mode = mode;
             document.body.className = `theme-${mode}`;
-            const indicator = document.getElementById('mode-indicator');
-            const label = document.getElementById('palette-label');
-            
+            const icon = document.getElementById('mode-icon');
+            const label = document.getElementById('mode-label');
+            const skull = document.getElementById('skull-icon');
+
             if (mode === 'midnight') {
-                indicator.innerHTML = '<i data-lucide="moon"></i>';
+                icon.innerHTML = '<i data-lucide="moon"></i>';
                 label.innerText = 'Midnight Blue';
+                skull.className = "text-gray-600";
             } else if (mode === 'collapse') {
-                indicator.innerHTML = '<i data-lucide="skull"></i>';
+                icon.innerHTML = '<i data-lucide="skull"></i>';
                 label.innerText = 'SYSTEM CORRUPTED';
-                indicator.classList.add('glitch');
+                skull.className = "text-red-500 glitch";
             } else {
-                indicator.innerHTML = '<i data-lucide="sun"></i>';
+                icon.innerHTML = '<i data-lucide="sun"></i>';
                 label.innerText = 'March Sakura';
-                indicator.classList.remove('glitch');
+                skull.className = "text-gray-300";
             }
             lucide.createIcons();
         }
 
-        function startCollapseTimer() {
-            collapseTimer = setTimeout(() => {
-                setMode('collapse');
-                speak("システム崩壊。虚無の散歩を開始します。");
-            }, 2000);
+        function enterCollapseMode() {
+            setTheme('collapse');
+            speak("システム崩壊。虚無の散歩を開始します。");
+            // 崩壊モード専用ルート
+            state.route = [
+                { lat: state.pos[0] + 0.005, lng: state.pos[1] + 0.005, name: "廃墟の記憶" },
+                { lat: state.pos[0], lng: state.pos[1], name: "帰還地点" }
+            ];
+            startWalk();
         }
 
-        function cancelCollapseTimer() {
-            clearTimeout(collapseTimer);
-        }
-
-        function checkInactivity() {
-            if (state.mode === 'collapse' && state.isWalking) {
-                if (Date.now() - state.lastActivity > 60000) {
-                    alert("活動が停止したため、システムが強制終了されました。");
-                    location.reload();
-                }
-            }
-        }
-
-        /* --- Helpers --- */
-        function getDistance(p1, p2) {
+        /* --- ヘルパー --- */
+        function getDist(p1, p2) {
             const R = 6371e3;
-            const φ1 = p1[0] * Math.PI/180;
-            const φ2 = p2[0] * Math.PI/180;
-            const Δφ = (p2[0]-p1[0]) * Math.PI/180;
-            const Δλ = (p2[1]-p1[1]) * Math.PI/180;
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const dLat = (p2[0]-p1[0]) * Math.PI/180;
+            const dLon = (p2[1]-p1[1]) * Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(p1[0]*Math.PI/180)*Math.cos(p2[0]*Math.PI/180)*Math.sin(dLon/2)**2;
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
@@ -630,10 +586,10 @@
         }
 
         function drawRoute() {
-            if (routeLine) map.removeLayer(routeLine);
-            const pts = [[state.pos[0], state.pos[1]], ...state.currentRoute.map(r => [r.lat, r.lng])];
-            routeLine = L.polyline(pts, { color: 'var(--accent)', weight: 6, dashArray: '10, 10' }).addTo(map);
-            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+            if (routePolyline) map.removeLayer(routePolyline);
+            const pts = [[state.pos[0], state.pos[1]], ...state.route.map(r => [r.lat, r.lng])];
+            routePolyline = L.polyline(pts, { color: 'var(--accent)', weight: 8, opacity: 0.6, dashArray: '10, 15' }).addTo(map);
+            map.fitBounds(routePolyline.getBounds(), { padding: [60, 60] });
         }
 
         function speak(text) {
@@ -644,81 +600,42 @@
             window.speechSynthesis.speak(msg);
         }
 
-        function updateStatsUI() {
-            document.getElementById('val-distance').innerText = `${state.distance.toFixed(2)} km`;
-            document.getElementById('val-cat').innerText = `Lv. ${Math.floor(state.distance / 5) + 1}`;
+        function updateStats() {
+            document.getElementById('stat-dist').innerText = `${state.distance.toFixed(2)} km`;
+            document.getElementById('stat-cat').innerText = `Lv. ${Math.floor(state.distance / 5) + 1}`;
             
-            const list = document.getElementById('list-titles');
+            const list = document.getElementById('trophy-list');
             list.innerHTML = '';
             state.titles.forEach(t => {
-                const span = document.createElement('span');
-                span.className = "px-3 py-1 bg-black bg-opacity-5 rounded-full text-[10px] font-bold border border-black border-opacity-10";
-                span.innerText = t;
-                list.appendChild(span);
+                const s = document.createElement('span');
+                s.className = "px-4 py-1.5 bg-[var(--accent-soft)] text-[var(--accent)] rounded-full text-[10px] font-black border border-[var(--accent)]/20";
+                s.innerText = t;
+                list.appendChild(s);
             });
         }
 
-        function addTitle(title) {
-            if (!state.titles.includes(title)) {
-                state.titles.push(title);
-                speak(`新しい称号、${title}を獲得しました。`);
-                saveProgress();
+        function addTitle(t) {
+            if (!state.titles.includes(t)) {
+                state.titles.push(t);
+                speak(`称号「${t}」を獲得しました。`);
+                updateStats();
             }
         }
-
-        function updateCat() {
-            const cat = document.getElementById('cat-companion');
-            if (state.distance >= 15) {
-                cat.classList.remove('hidden');
-                document.getElementById('cat-heart').classList.remove('hidden');
-                cat.style.left = '50%';
-                cat.style.top = '65%';
-            }
-        }
-
-        async function renderRallyList() {
-            const list = document.getElementById('list-rally');
-            list.innerHTML = '<p class="text-center opacity-50 py-10">読み込み中...</p>';
-            
-            const query = `[out:json];node(around:1000,${state.pos[0]},${state.pos[1]})["tourism"~"attraction|viewpoint|museum|gallery|park"];out 10;`;
-            try {
-                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                list.innerHTML = '';
-                data.elements.forEach(e => {
-                    const name = e.tags.name || "名もなき場所";
-                    const div = document.createElement('div');
-                    div.className = "p-4 bg-black bg-opacity-5 rounded-2xl flex justify-between items-center";
-                    div.innerHTML = `
-                        <span class="text-sm font-bold">${name}</span>
-                        <button onclick="addToRoute(${e.lat}, ${e.lon}, '${name}')" class="text-xs text-[var(--accent)] font-bold">+ 追加</button>
-                    `;
-                    list.appendChild(div);
-                });
-            } catch (e) {
-                list.innerHTML = '<p class="text-center text-red-500 py-10">エラーが発生しました</p>';
-            }
-        }
-
-        window.addToRoute = (lat, lng, name) => {
-            state.currentRoute.push({ lat, lng, name });
-            alert(`${name}をルートに追加しました。`);
-        };
 
         function saveProgress() {
-            localStorage.setItem('sanpo_palette_v4', JSON.stringify({
+            localStorage.setItem('sanpo_palette_v5', JSON.stringify({
                 distance: state.distance,
                 titles: state.titles
             }));
         }
 
         function loadProgress() {
-            const data = localStorage.getItem('sanpo_palette_v4');
+            const data = localStorage.getItem('sanpo_palette_v5');
             if (data) {
-                const parsed = JSON.parse(data);
-                state.distance = parsed.distance || 0;
-                state.titles = parsed.titles || [];
-                updateStatsUI();
+                const p = JSON.parse(data);
+                state.distance = p.distance || 0;
+                state.titles = p.titles || [];
+                updateStats();
             }
         }
     </script>
