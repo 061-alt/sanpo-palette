@@ -1,563 +1,440 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Sun, 
-  Moon, 
-  MapPin, 
-  Navigation, 
-  Volume2, 
-  Trophy, 
-  CheckCircle2, 
-  Clock,
-  Info,
-  ChevronRight,
-  Cat,
-  Loader2,
-  RefreshCw,
-  AlertCircle,
-  Compass,
-  ArrowUp
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-
-// --- Types ---
-interface POI {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  type: string;
-  category: 'shrine' | 'temple' | 'park' | 'historic' | 'other';
-  distance?: number;
-  isMainStreet?: boolean;
-}
-
-// --- Helpers ---
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-const CATEGORY_LABELS: Record<POI['category'], string> = {
-  shrine: '神社・寺院',
-  temple: '寺院',
-  park: '公園',
-  historic: '史跡',
-  other: 'その他',
-};
-
-export default function App() {
-  const [isMidnight, setIsMidnight] = useState(false);
-  const [plannedTime, setPlannedTime] = useState(30);
-  const [stamps, setStamps] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'planner' | 'rally' | 'trophy'>('planner');
-  const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
-  
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [pois, setPois] = useState<POI[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // --- Navigation & Compass State ---
-  const [heading, setHeading] = useState<number | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [lastAnnouncedStep, setLastAnnouncedStep] = useState<number | null>(null);
-
-  // --- Compass Logic ---
-  useEffect(() => {
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      const h = (e as any).webkitCompassHeading || (e.alpha ? 360 - e.alpha : null);
-      if (h !== null) setHeading(h);
-    };
-
-    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-      (DeviceOrientationEvent as any).requestPermission()
-        .then((response: string) => {
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation);
-          }
-        })
-        .catch(console.error);
-    } else {
-      window.addEventListener('deviceorientation', handleOrientation);
-    }
-
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, []);
-
-  // --- Fetching Logic ---
-  const fetchNearbyPOIs = useCallback(async (lat: number, lng: number) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const query = `
-        [out:json][timeout:25];
-        (
-          node["amenity"="place_of_worship"](around:2000,${lat},${lng});
-          node["leisure"="park"](around:2000,${lat},${lng});
-          node["historic"](around:2000,${lat},${lng});
-          way["amenity"="place_of_worship"](around:2000,${lat},${lng});
-          way["leisure"="park"](around:2000,${lat},${lng});
-          way["historic"](around:2000,${lat},${lng});
-        );
-        out center;
-      `;
-      
-      const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-      if (!response.ok) throw new Error('データの取得に失敗しました');
-      
-      const data = await response.json();
-      const fetchedPois: POI[] = data.elements
-        .filter((el: any) => el.tags && el.tags.name)
-        .map((el: any) => {
-          const latVal = el.lat || (el.center && el.center.lat);
-          const lngVal = el.lon || (el.center && el.center.lon);
-          
-          let category: POI['category'] = 'other';
-          if (el.tags.amenity === 'place_of_worship') category = 'shrine';
-          if (el.tags.leisure === 'park') category = 'park';
-          if (el.tags.historic) category = 'historic';
-
-          return {
-            id: `${el.type}-${el.id}`,
-            name: el.tags.name,
-            lat: latVal,
-            lng: lngVal,
-            type: el.tags.amenity || el.tags.leisure || el.tags.historic || 'poi',
-            category,
-            distance: getDistance(lat, lng, latVal, lngVal),
-            isMainStreet: Math.random() > 0.4, 
-          };
-        })
-        .sort((a: POI, b: POI) => (a.distance || 0) - (b.distance || 0));
-
-      setPois(fetchedPois);
-    } catch (err) {
-      console.error(err);
-      setError('周辺スポットの取得中にエラーが発生しました。');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const getLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setError('お使いのブラウザは位置情報をサポートしていません。');
-      return;
-    }
-
-    setIsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ lat: latitude, lng: longitude });
-        fetchNearbyPOIs(latitude, longitude);
-      },
-      (err) => {
-        console.error(err);
-        setError('位置情報の取得に失敗しました。設定を確認してください。');
-        setIsLoading(false);
-      }
-    );
-  }, [fetchNearbyPOIs]);
-
-  useEffect(() => {
-    getLocation();
-    const savedStamps = localStorage.getItem('sanpo-palette-stamps');
-    if (savedStamps) setStamps(JSON.parse(savedStamps));
-  }, [getLocation]);
-
-  useEffect(() => {
-    localStorage.setItem('sanpo-palette-stamps', JSON.stringify(stamps));
-  }, [stamps]);
-
-  // --- Route Logic ---
-  const suggestedRoute = useMemo(() => {
-    const filtered = isMidnight ? pois.filter(p => p.isMainStreet) : pois;
-    let currentTotal = 0;
-    const selected: POI[] = [];
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>さんぽパレット | Sanpo Palette</title>
     
-    for (const poi of filtered) {
-      const walkTime = (poi.distance || 0) * 15;
-      const stayTime = 10;
-      if (currentTotal + walkTime + stayTime <= plannedTime) {
-        selected.push(poi);
-        currentTotal += walkTime + stayTime;
-      }
-    }
+    <!-- CDNs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
 
-    return {
-      pois: selected,
-      totalTime: Math.round(currentTotal),
-      name: isMidnight ? '月明かりの安全ルート' : '陽だまりの散策コース'
-    };
-  }, [pois, isMidnight, plannedTime]);
-
-  const toggleStamp = (id: string) => {
-    setStamps(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
-  };
-
-  const playAudioGuide = (poi: POI, customText?: string) => {
-    const text = customText || `${poi.name}。${CATEGORY_LABELS[poi.category]}です。現在地から約${poi.distance?.toFixed(1)}キロメートルの場所にあります。`;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // --- Auto-Audio Cues & Navigation Progress ---
-  useEffect(() => {
-    if (!isNavigating || !userLocation || suggestedRoute.pois.length === 0) return;
-
-    const nextPoi = suggestedRoute.pois[currentStepIndex];
-    if (!nextPoi) return;
-
-    const distToNext = getDistance(userLocation.lat, userLocation.lng, nextPoi.lat, nextPoi.lng);
-    
-    if (distToNext < 0.05 && lastAnnouncedStep !== currentStepIndex) {
-      playAudioGuide(nextPoi, `${nextPoi.name}に近づきました。まもなく到着です。`);
-      setLastAnnouncedStep(currentStepIndex);
-    }
-
-    if (distToNext < 0.01) {
-      if (currentStepIndex < suggestedRoute.pois.length - 1) {
-        setCurrentStepIndex(prev => prev + 1);
-      } else {
-        setIsNavigating(false);
-        playAudioGuide(nextPoi, "目的地に到着しました。お疲れ様でした。");
-      }
-    }
-  }, [userLocation, isNavigating, currentStepIndex, suggestedRoute.pois, lastAnnouncedStep]);
-
-  const themeClasses = isMidnight ? 'bg-midnight text-white' : 'bg-sand text-wood';
-  const cardClasses = isMidnight ? 'bg-white/10 border border-white/20 backdrop-blur-sm' : 'bg-white border-2 border-sage/20 shadow-sm';
-
-  return (
-    <div className={`min-h-screen transition-colors duration-700 ${themeClasses} font-maru pb-24`}>
-      {/* --- Next Step Card --- */}
-      <AnimatePresence>
-        {isNavigating && suggestedRoute.pois[currentStepIndex] && (
-          <motion.div 
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            className="fixed top-24 left-6 right-6 z-[60] max-w-2xl mx-auto"
-          >
-            <div className={`p-4 rounded-2xl shadow-2xl flex items-center gap-4 ${isMidnight ? 'bg-midnight/90 border border-moon/30 backdrop-blur-xl' : 'bg-white/90 border border-sage/30 backdrop-blur-xl'}`}>
-              <div className={`p-3 rounded-xl ${isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white'}`}>
-                <ArrowUp size={32} className="animate-pulse" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs opacity-60 font-bold uppercase tracking-widest">次の目的地まで</p>
-                <h4 className="text-lg font-bold truncate">{suggestedRoute.pois[currentStepIndex].name}</h4>
-                <p className={`text-sm font-bold ${isMidnight ? 'text-moon' : 'text-sage'}`}>
-                  あと約{(getDistance(userLocation?.lat || 0, userLocation?.lng || 0, suggestedRoute.pois[currentStepIndex].lat, suggestedRoute.pois[currentStepIndex].lng) * 1000).toFixed(0)}m
-                </p>
-              </div>
-              <button onClick={() => setIsNavigating(false)} className="p-2 opacity-40 hover:opacity-100">停止</button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Header --- */}
-      <header className="p-6 flex justify-between items-center max-w-2xl mx-auto sticky top-0 z-50 backdrop-blur-md">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2">
-          {isMidnight ? <Cat className="text-moon" size={28} /> : <MapPin className="text-sage" size={28} />}
-          <h1 className="text-2xl font-bold tracking-tight">さんぽパレット</h1>
-        </motion.div>
+    <style>
+        :root {
+            --sage: #87A96B;
+            --sand: #F5F5DC;
+            --wood: #8B4513;
+            --midnight: #0B1026;
+            --moon: #F4D03F;
+        }
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            transition: background-color 0.5s, color 0.5s;
+        }
+        .bg-midnight { background-color: var(--midnight); }
+        .text-moon { color: var(--moon); }
+        .bg-moon { background-color: var(--moon); }
+        .bg-sage { background-color: var(--sage); }
+        .text-sage { color: var(--sage); }
+        .bg-sand { background-color: var(--sand); }
+        .text-wood { color: var(--wood); }
         
-        <div className="flex items-center gap-3">
-          <button onClick={getLocation} className="p-2 rounded-full opacity-60 hover:opacity-100 transition-opacity">
-            <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
-          </button>
-          <button 
-            onClick={() => setIsMidnight(!isMidnight)}
-            className={`p-3 rounded-full transition-all duration-500 ${isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white'} shadow-lg`}
-          >
-            {isMidnight ? <Moon size={24} /> : <Sun size={24} />}
-          </button>
+        #map { height: 200px; border-radius: 1.5rem; z-index: 10; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Custom range slider styling */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: var(--sage);
+            cursor: pointer;
+        }
+        .midnight input[type=range]::-webkit-slider-thumb {
+            background: var(--moon);
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sage: '#87A96B',
+                        sand: '#F5F5DC',
+                        wood: '#8B4513',
+                        midnight: '#0B1026',
+                        moon: '#F4D03F',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-sand text-wood pb-24 min-h-screen">
+
+    <!-- --- ナビゲーション・オーバーレイ --- -->
+    <div id="nav-overlay" class="fixed top-24 left-6 right-6 z-[100] max-w-2xl mx-auto hidden">
+        <div class="p-4 rounded-2xl shadow-2xl flex items-center gap-4 bg-white/90 border border-sage/30 backdrop-blur-xl transition-all" id="nav-card-bg">
+            <div class="p-3 rounded-xl bg-sage text-white" id="nav-icon-container">
+                <i data-lucide="arrow-up" class="animate-bounce"></i>
+            </div>
+            <div class="flex-1">
+                <p class="text-[10px] opacity-60 font-bold uppercase tracking-widest">次の目的地まで</p>
+                <h4 class="text-sm font-bold truncate" id="nav-next-name">---</h4>
+                <p class="text-sm font-bold text-sage" id="nav-dist-text">あと約 --m</p>
+            </div>
+            <button onclick="stopNavigation()" class="p-2 opacity-40 hover:opacity-100">
+                <i data-lucide="x" size="18"></i>
+            </button>
         </div>
-      </header>
+    </div>
 
-      <main className="max-w-2xl mx-auto px-6 space-y-8">
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-500 text-sm">
-            <AlertCircle size={20} />
-            <p>{error}</p>
-          </div>
-        )}
+    <!-- --- ヘッダー --- -->
+    <header class="p-6 flex justify-between items-center max-w-2xl mx-auto sticky top-0 z-50 backdrop-blur-md">
+        <div class="flex items-center gap-2">
+            <div id="header-icon"><i data-lucide="map-pin" class="text-sage"></i></div>
+            <h1 class="text-xl font-bold tracking-tight">さんぽパレット</h1>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button onclick="getLocation()" class="p-2 rounded-full opacity-60 hover:opacity-100 transition-opacity" id="refresh-btn">
+                <i data-lucide="refresh-cw" size="20"></i>
+            </button>
+            <button onclick="toggleTheme()" class="p-3 rounded-full transition-all duration-500 bg-sage text-white shadow-lg" id="theme-toggle">
+                <i data-lucide="sun" size="24" id="theme-icon"></i>
+            </button>
+        </div>
+    </header>
 
-        {isLoading && pois.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 opacity-50 space-y-4">
-            <Loader2 size={40} className="animate-spin" />
+    <main class="max-w-2xl mx-auto px-6 space-y-8">
+        <!-- エラー表示 -->
+        <div id="error-alert" class="hidden bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-500 text-sm">
+            <i data-lucide="alert-circle" size="20"></i>
+            <p id="error-message"></p>
+        </div>
+
+        <!-- ローディング -->
+        <div id="loading-state" class="hidden flex flex-col items-center justify-center py-20 opacity-50 space-y-4">
+            <i data-lucide="loader-2" class="animate-spin" size="40"></i>
             <p>周辺のスポットを探しています...</p>
-          </div>
-        )}
+        </div>
 
-        {/* --- Planner Section --- */}
-        {activeTab === 'planner' && (
-          <motion.section initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-            <div className={`p-6 rounded-3xl ${cardClasses}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className={isMidnight ? 'text-moon' : 'text-sage'} size={20} />
-                <h2 className="text-lg font-bold">散歩プラン</h2>
-              </div>
-              
-              <div className="space-y-4">
-                <label className="block text-sm opacity-80">予定の散歩時間（分）</label>
-                <div className="flex items-center gap-4">
-                  <input 
-                    type="range" min="15" max="120" step="15"
-                    value={plannedTime}
-                    onChange={(e) => setPlannedTime(parseInt(e.target.value))}
-                    className={`flex-1 h-2 rounded-lg appearance-none cursor-pointer ${isMidnight ? 'bg-white/20' : 'bg-sage/20'}`}
-                  />
-                  <span className="text-xl font-bold w-16">{plannedTime}分</span>
+        <!-- --- タブ: プランナー --- -->
+        <section id="tab-planner" class="tab-content active space-y-6">
+            <div class="p-6 rounded-3xl bg-white border-2 border-sage/20 shadow-sm" id="planner-card">
+                <div class="flex items-center gap-2 mb-4">
+                    <i data-lucide="clock" class="text-sage"></i>
+                    <h2 class="text-lg font-bold">散歩プラン</h2>
                 </div>
                 
-                {isMidnight && (
-                  <div className="flex items-center gap-2 text-xs text-moon bg-moon/10 p-2 rounded-lg">
-                    <Info size={14} />
-                    <span>夜間モード：大通りを中心とした安全なルートを優先します。</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold opacity-60 uppercase tracking-wider">おすすめのコース</h3>
-              <div className={`p-6 rounded-3xl ${cardClasses}`}>
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h4 className="text-xl font-bold">{suggestedRoute.name}</h4>
-                    <p className="text-sm opacity-70">合計目安：約{suggestedRoute.totalTime}分</p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setIsNavigating(!isNavigating);
-                      setCurrentStepIndex(0);
-                      setLastAnnouncedStep(null);
-                    }}
-                    className={`p-3 rounded-full transition-all ${isNavigating ? 'bg-red-500 text-white' : (isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white')}`}
-                  >
-                    {isNavigating ? <RefreshCw size={20} /> : <Navigation size={20} />}
-                  </button>
-                </div>
-
-                <div className="space-y-4 relative">
-                  {suggestedRoute.pois.map((poi, idx) => {
-                    const isNext = isNavigating && idx === currentStepIndex;
-                    const isPassed = isNavigating && idx < currentStepIndex;
-                    const pathColor = isMidnight ? 'text-moon' : 'text-emerald-500';
-                    const connectorColor = isMidnight ? 'bg-moon/30' : 'bg-emerald-500/30';
-
-                    return (
-                      <div key={poi.id} className={`flex gap-4 items-start relative transition-opacity ${isPassed ? 'opacity-30' : 'opacity-100'}`}>
-                        <div className="flex flex-col items-center">
-                          <div className={`w-4 h-4 rounded-full mt-2 border-2 ${isNext ? 'animate-ping absolute' : ''} ${isMidnight ? 'bg-moon border-white' : 'bg-emerald-500 border-white'}`} />
-                          <div className={`w-4 h-4 rounded-full mt-2 border-2 relative z-10 ${isMidnight ? 'bg-moon border-white' : 'bg-emerald-500 border-white'}`} />
-                          {idx !== suggestedRoute.pois.length - 1 && (
-                            <div className={`w-0.5 h-12 ${connectorColor}`} />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-center">
-                            <div className="flex flex-col">
-                              <h5 className={`font-bold ${isNext ? pathColor : ''}`}>{poi.name}</h5>
-                              <span className="text-[10px] opacity-50">{poi.distance?.toFixed(2)}km先</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {poi.isMainStreet && isMidnight && (
-                                <span className="text-[8px] bg-moon/20 text-moon px-1.5 py-0.5 rounded font-bold">大通り</span>
-                              )}
-                              <button onClick={() => setSelectedPOI(poi)} className="text-xs opacity-60 flex items-center gap-1 hover:opacity-100">
-                                詳細 <ChevronRight size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {!isLoading && suggestedRoute.pois.length === 0 && (
-                    <p className="text-center py-4 opacity-50 text-sm">条件に合うスポットが見つかりませんでした。</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </motion.section>
-        )}
-
-        {/* --- Rally Section --- */}
-        {activeTab === 'rally' && (
-          <motion.section initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">スタンプラリー</h2>
-              <span className="text-sm opacity-70">{stamps.length} 達成</span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              {pois.slice(0, 15).map(poi => (
-                <div key={poi.id} className={`p-4 rounded-2xl flex items-center justify-between ${cardClasses}`}>
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${stamps.includes(poi.id) ? (isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white') : (isMidnight ? 'bg-white/5' : 'bg-sand')}`}>
-                      {stamps.includes(poi.id) ? <CheckCircle2 size={24} /> : <MapPin size={20} className="opacity-40" />}
+                <div class="space-y-4">
+                    <label class="block text-sm opacity-80">予定の散歩時間（分）</label>
+                    <div class="flex items-center gap-4">
+                        <input type="range" min="15" max="120" step="15" value="30" id="time-range" class="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-sage/20">
+                        <span class="text-xl font-bold w-16" id="time-display">30分</span>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-sm">{poi.name}</h4>
-                      <p className="text-[10px] opacity-60">{CATEGORY_LABELS[poi.category]}</p>
+                </div>
+            </div>
+
+            <div id="map-container" class="space-y-4">
+                <div id="map"></div>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="text-sm font-bold opacity-60 uppercase tracking-wider">おすすめのコース</h3>
+                <div class="p-6 rounded-3xl bg-white border-2 border-sage/20 shadow-sm" id="route-card">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h4 class="text-xl font-bold" id="route-name">陽だまりの散策コース</h4>
+                            <p class="text-sm opacity-70" id="route-meta">合計目安：約--分</p>
+                        </div>
+                        <button onclick="toggleNavigation()" class="p-3 rounded-full bg-sage text-white shadow-lg transition-all" id="nav-start-btn">
+                            <i data-lucide="navigation" size="20"></i>
+                        </button>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => playAudioGuide(poi)} className={`p-2 rounded-full ${isMidnight ? 'hover:bg-white/10' : 'hover:bg-sage/10'}`}>
-                      <Volume2 size={20} />
-                    </button>
-                    <button 
-                      onClick={() => toggleStamp(poi.id)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${stamps.includes(poi.id) ? 'opacity-50' : (isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white')}`}
-                    >
-                      {stamps.includes(poi.id) ? '済' : 'スタンプ'}
-                    </button>
-                  </div>
+
+                    <div id="route-list" class="space-y-4 relative">
+                        <!-- スポットリストがここに挿入されます -->
+                    </div>
                 </div>
-              ))}
             </div>
-          </motion.section>
-        )}
+        </section>
 
-        {/* --- Trophy Section --- */}
-        {activeTab === 'trophy' && (
-          <motion.section initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8 text-center py-12">
-            <div className="relative inline-block">
-              <div className={`w-48 h-48 rounded-full flex items-center justify-center mx-auto ${isMidnight ? 'bg-moon/20 border-4 border-moon' : 'bg-sage/20 border-4 border-sage'}`}>
-                <Trophy size={80} className={isMidnight ? 'text-moon' : 'text-sage'} />
-              </div>
-              {stamps.length >= 3 && (
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -top-4 -right-4 bg-red-500 text-white p-3 rounded-full shadow-xl">
-                  <span className="text-2xl">💮</span>
-                </motion.div>
-              )}
+        <!-- --- タブ: ラリー --- -->
+        <section id="tab-rally" class="tab-content space-y-6">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold">スタンプラリー</h2>
+                <span class="text-sm opacity-70" id="rally-count">0 達成</span>
             </div>
+            <div id="rally-list" class="grid grid-cols-1 gap-4"></div>
+        </section>
 
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">コレクション</h2>
-              {stamps.length >= 3 ? (
-                <div className="space-y-2">
-                  <p className="text-lg text-red-500 font-bold">「散策の達人」</p>
-                  <p className="opacity-70 text-sm">3つ以上のスポットを巡った証です。</p>
+        <!-- --- タブ: 称号 --- -->
+        <section id="tab-trophy" class="tab-content space-y-8 text-center py-12">
+            <div class="relative inline-block">
+                <div class="w-48 h-48 rounded-full flex items-center justify-center mx-auto bg-sage/20 border-4 border-sage" id="trophy-circle">
+                    <i data-lucide="trophy" size="80" class="text-sage" id="trophy-icon"></i>
                 </div>
-              ) : (
-                <p className="opacity-70 text-sm">あと{3 - stamps.length}つのスポットで称号がもらえます。</p>
-              )}
+                <div id="master-badge" class="hidden absolute -top-4 -right-4 bg-red-500 text-white p-3 rounded-full shadow-xl">
+                    <span class="text-2xl">💮</span>
+                </div>
             </div>
-          </motion.section>
-        )}
-      </main>
+            <div class="space-y-4">
+                <h2 class="text-2xl font-bold">コレクション</h2>
+                <div id="trophy-status">
+                    <p class="opacity-70 text-sm">スポットを巡って称号を手に入れよう！</p>
+                </div>
+            </div>
+        </section>
+    </main>
 
-      {/* --- Compass & Floating Action --- */}
-      <div className="fixed bottom-28 right-6 flex flex-col gap-4 z-40">
-        <motion.div 
-          style={{ rotate: heading || 0 }}
-          className={`p-3 rounded-full shadow-xl ${isMidnight ? 'bg-white/10 text-moon backdrop-blur-md border border-white/20' : 'bg-white text-sage shadow-sage/20 border border-sage/10'}`}
-        >
-          <Compass size={24} />
-        </motion.div>
-        
-        {isNavigating && (
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            onClick={() => {
-              const nextPoi = suggestedRoute.pois[currentStepIndex];
-              if (nextPoi) playAudioGuide(nextPoi);
-            }}
-            className={`p-4 rounded-full shadow-2xl ${isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white'}`}
-          >
-            <Volume2 size={24} />
-          </motion.button>
-        )}
-      </div>
-
-      {/* --- Bottom Navigation --- */}
-      <nav className={`fixed bottom-0 left-0 right-0 p-4 border-t ${isMidnight ? 'bg-midnight/90 border-white/10' : 'bg-sand/90 border-sage/10'} backdrop-blur-md z-40`}>
-        <div className="max-w-2xl mx-auto flex justify-around items-center">
-          <NavButton active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<Navigation size={20} />} label="プラン" isMidnight={isMidnight} />
-          <NavButton active={activeTab === 'rally'} onClick={() => setActiveTab('rally')} icon={<MapPin size={20} />} label="ラリー" isMidnight={isMidnight} />
-          <NavButton active={activeTab === 'trophy'} onClick={() => setActiveTab('trophy')} icon={<Trophy size={20} />} label="称号" isMidnight={isMidnight} />
+    <!-- --- コンパス & 音声 --- -->
+    <div class="fixed bottom-28 right-6 flex flex-col gap-4 z-40">
+        <div id="compass" class="p-3 rounded-full shadow-xl bg-white text-sage border border-sage/10 transition-transform">
+            <i data-lucide="compass" size="24"></i>
         </div>
-      </nav>
-
-      {/* --- POI Detail Modal --- */}
-      <AnimatePresence>
-        {selectedPOI && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setSelectedPOI(null)}>
-            <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className={`w-full max-w-lg rounded-3xl p-8 space-y-6 ${isMidnight ? 'bg-midnight text-white' : 'bg-white text-wood'}`} onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${isMidnight ? 'bg-moon/20 text-moon' : 'bg-sage/20 text-sage'}`}>
-                    {CATEGORY_LABELS[selectedPOI.category]}
-                  </span>
-                  <h2 className="text-2xl font-bold mt-2">{selectedPOI.name}</h2>
-                </div>
-                <button onClick={() => setSelectedPOI(null)} className="p-2 opacity-50 hover:opacity-100">✕</button>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-sm leading-relaxed">
-                  現在地から約{selectedPOI.distance?.toFixed(2)}kmの場所にある{CATEGORY_LABELS[selectedPOI.category]}です。
-                  散歩の目的地として最適です。
-                </p>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button onClick={() => playAudioGuide(selectedPOI)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold ${isMidnight ? 'bg-white/10' : 'bg-sand'}`}>
-                  <Volume2 size={20} /> 音声ガイド
-                </button>
-                <button 
-                  onClick={() => { toggleStamp(selectedPOI.id); setSelectedPOI(null); }}
-                  className={`flex-1 py-3 rounded-2xl font-bold ${isMidnight ? 'bg-moon text-midnight' : 'bg-sage text-white'}`}
-                >
-                  {stamps.includes(selectedPOI.id) ? 'スタンプ済' : 'スタンプを押す'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Midnight Motif --- */}
-      {isMidnight && (
-        <div className="fixed top-20 right-10 pointer-events-none opacity-20">
-          <motion.div animate={{ rotate: [0, 5, 0] }} transition={{ duration: 4, repeat: Infinity }}>
-            <Cat size={120} className="text-moon" />
-          </motion.div>
-        </div>
-      )}
+        <button id="audio-btn" onclick="playCurrentStepAudio()" class="hidden p-4 rounded-full shadow-2xl bg-sage text-white">
+            <i data-lucide="volume-2" size="24"></i>
+        </button>
     </div>
-  );
-}
 
-function NavButton({ active, onClick, icon, label, isMidnight }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, isMidnight: boolean }) {
-  const activeColor = isMidnight ? 'text-moon' : 'text-sage';
-  const inactiveColor = isMidnight ? 'text-white/40' : 'text-wood/40';
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors ${active ? activeColor : inactiveColor}`}>
-      {icon}
-      <span className="text-[10px] font-bold">{label}</span>
-      {active && <motion.div layoutId="nav-indicator" className={`w-1 h-1 rounded-full ${isMidnight ? 'bg-moon' : 'bg-sage'}`} />}
-    </button>
-  );
-}
+    <!-- --- ボトムナビゲーション --- -->
+    <nav class="fixed bottom-0 left-0 right-0 p-4 border-t bg-sand/90 border-sage/10 backdrop-blur-md z-[80]">
+        <div class="max-w-2xl mx-auto flex justify-around items-center">
+            <button onclick="switchTab('planner')" class="nav-btn active flex flex-col items-center gap-1 text-sage" id="btn-planner">
+                <i data-lucide="navigation" size="20"></i>
+                <span class="text-[10px] font-bold">プラン</span>
+            </button>
+            <button onclick="switchTab('rally')" class="nav-btn flex flex-col items-center gap-1 text-wood/40" id="btn-rally">
+                <i data-lucide="map-pin" size="20"></i>
+                <span class="text-[10px] font-bold">ラリー</span>
+            </button>
+            <button onclick="switchTab('trophy')" class="nav-btn flex flex-col items-center gap-1 text-wood/40" id="btn-trophy">
+                <i data-lucide="trophy" size="20"></i>
+                <span class="text-[10px] font-bold">称号</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- --- モーダル --- -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] hidden flex items-end sm:items-center justify-center p-4" onclick="closeModal()">
+        <div class="w-full max-w-lg rounded-3xl p-8 space-y-6 bg-white text-wood" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span id="modal-category" class="text-xs font-bold px-2 py-1 rounded-full bg-sage/20 text-sage">カテゴリー</span>
+                    <h2 id="modal-name" class="text-2xl font-bold mt-2">スポット名</h2>
+                </div>
+                <button onclick="closeModal()" class="p-2 opacity-50 hover:opacity-100">✕</button>
+            </div>
+            <p id="modal-desc" class="text-sm leading-relaxed"></p>
+            <div class="flex gap-4 pt-4">
+                <button id="modal-audio-btn" class="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-sand">
+                    <i data-lucide="volume-2" size="20"></i> 音声ガイド
+                </button>
+                <button id="modal-stamp-btn" class="flex-1 py-3 rounded-2xl font-bold bg-sage text-white">スタンプを押す</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 状態管理 ---
+        let state = {
+            isMidnight: false,
+            plannedTime: 30,
+            stamps: JSON.parse(localStorage.getItem('sanpo-palette-stamps') || '[]'),
+            activeTab: 'planner',
+            userLocation: null,
+            pois: [],
+            isLoading: false,
+            heading: 0,
+            isNavigating: false,
+            currentStepIndex: 0,
+            lastAnnouncedStep: -1,
+            suggestedRoute: { pois: [], totalTime: 0, name: '' }
+        };
+
+        let map, userMarker, poiMarkers = [];
+        const CATEGORY_LABELS = { shrine: '神社・寺院', temple: '寺院', park: '公園', historic: '史跡', other: 'その他' };
+
+        // --- 初期化 ---
+        function init() {
+            lucide.createIcons();
+            initMap();
+            getLocation();
+            setupEventListeners();
+            updateUI();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('time-range').addEventListener('input', (e) => {
+                state.plannedTime = parseInt(e.target.value);
+                document.getElementById('time-display').innerText = `${state.plannedTime}分`;
+                calculateRoute();
+                updateUI();
+            });
+
+            window.addEventListener('deviceorientation', (e) => {
+                let h = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : 0);
+                state.heading = h;
+                document.getElementById('compass').style.transform = `rotate(${h}deg)`;
+            });
+        }
+
+        function initMap() {
+            map = L.map('map').setView([35.6895, 139.6917], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+            userMarker = L.circleMarker([35.6895, 139.6917], { color: '#87A96B', radius: 8, fillOpacity: 0.8 }).addTo(map);
+        }
+
+        // --- 位置情報 & API ---
+        function getLocation() {
+            if (!navigator.geolocation) return;
+            state.isLoading = true;
+            updateUI();
+            navigator.geolocation.getCurrentPosition(pos => {
+                state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                map.setView([state.userLocation.lat, state.userLocation.lng], 15);
+                userMarker.setLatLng([state.userLocation.lat, state.userLocation.lng]);
+                fetchPOIs();
+            }, () => {
+                state.isLoading = false;
+                updateUI();
+            });
+        }
+
+        async function fetchPOIs() {
+            const { lat, lng } = state.userLocation;
+            const query = `[out:json][timeout:25];(node["amenity"="place_of_worship"](around:2000,${lat},${lng});node["leisure"="park"](around:2000,${lat},${lng});node["historic"](around:2000,${lat},${lng});way["amenity"="place_of_worship"](around:2000,${lat},${lng});way["leisure"="park"](around:2000,${lat},${lng});way["historic"](around:2000,${lat},${lng}););out center;`;
+            try {
+                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                state.pois = data.elements.filter(el => el.tags && el.tags.name).map(el => {
+                    const latVal = el.lat || (el.center && el.center.lat);
+                    const lngVal = el.lon || (el.center && el.center.lon);
+                    let cat = el.tags.amenity === 'place_of_worship' ? 'shrine' : el.tags.leisure === 'park' ? 'park' : el.tags.historic ? 'historic' : 'other';
+                    return { id: `${el.type}-${el.id}`, name: el.tags.name, lat: latVal, lng: lngVal, category: cat, distance: getDistance(lat, lng, latVal, lngVal), isMainStreet: Math.random() > 0.4 };
+                }).sort((a, b) => a.distance - b.distance);
+                calculateRoute();
+            } finally {
+                state.isLoading = false;
+                updateUI();
+            }
+        }
+
+        function calculateRoute() {
+            const filtered = state.isMidnight ? state.pois.filter(p => p.isMainStreet) : state.pois;
+            let total = 0, selected = [];
+            for (let p of filtered) {
+                let walk = p.distance * 15, stay = 10;
+                if (total + walk + stay <= state.plannedTime) { selected.push(p); total += walk + stay; }
+            }
+            state.suggestedRoute = { pois: selected, totalTime: Math.round(total), name: state.isMidnight ? '月明かりの安全ルート' : '陽だまりの散策コース' };
+            updateMarkers();
+        }
+
+        function updateMarkers() {
+            poiMarkers.forEach(m => map.removeLayer(m));
+            poiMarkers = [];
+            state.suggestedRoute.pois.forEach(p => {
+                const m = L.circleMarker([p.lat, p.lng], { color: state.isMidnight ? '#F4D03F' : '#87A96B', radius: 6 }).addTo(map);
+                m.bindPopup(`<b>${p.name}</b>`);
+                poiMarkers.push(m);
+            });
+        }
+
+        // --- ナビゲーション ---
+        function toggleNavigation() {
+            state.isNavigating = !state.isNavigating;
+            if (state.isNavigating) { state.currentStepIndex = 0; state.lastAnnouncedStep = -1; startNavLoop(); }
+            updateUI();
+        }
+
+        function stopNavigation() { state.isNavigating = false; updateUI(); }
+
+        function startNavLoop() {
+            if (!state.isNavigating) return;
+            navigator.geolocation.getCurrentPosition(pos => {
+                state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                userMarker.setLatLng([state.userLocation.lat, state.userLocation.lng]);
+                const nextPoi = state.suggestedRoute.pois[state.currentStepIndex];
+                if (nextPoi) {
+                    const d = getDistance(state.userLocation.lat, state.userLocation.lng, nextPoi.lat, nextPoi.lng);
+                    document.getElementById('nav-next-name').innerText = nextPoi.name;
+                    document.getElementById('nav-dist-text').innerText = `あと約 ${(d * 1000).toFixed(0)}m`;
+                    if (d < 0.05 && state.lastAnnouncedStep !== state.currentStepIndex) {
+                        speak(`${nextPoi.name}に近づきました。まもなく到着です。`);
+                        state.lastAnnouncedStep = state.currentStepIndex;
+                    }
+                    if (d < 0.01) {
+                        if (state.currentStepIndex < state.suggestedRoute.pois.length - 1) state.currentStepIndex++;
+                        else { speak("目的地に到着しました。お疲れ様でした。"); state.isNavigating = false; }
+                    }
+                }
+                updateUI();
+                if (state.isNavigating) setTimeout(startNavLoop, 3000);
+            });
+        }
+
+        // --- UI更新 ---
+        function updateUI() {
+            const body = document.body, headerIcon = document.getElementById('header-icon'), themeToggle = document.getElementById('theme-toggle'), themeIcon = document.getElementById('theme-icon');
+            if (state.isMidnight) {
+                body.classList.add('midnight', 'bg-midnight', 'text-white'); body.classList.remove('bg-sand', 'text-wood');
+                headerIcon.innerHTML = '<i data-lucide="cat" class="text-moon"></i>';
+                themeToggle.classList.replace('bg-sage', 'bg-moon'); themeToggle.classList.replace('text-white', 'text-midnight');
+                themeIcon.setAttribute('data-lucide', 'moon');
+            } else {
+                body.classList.remove('midnight', 'bg-midnight', 'text-white'); body.classList.add('bg-sand', 'text-wood');
+                headerIcon.innerHTML = '<i data-lucide="map-pin" class="text-sage"></i>';
+                themeToggle.classList.replace('bg-moon', 'bg-sage'); themeToggle.classList.replace('text-midnight', 'text-white');
+                themeIcon.setAttribute('data-lucide', 'sun');
+            }
+
+            document.getElementById('loading-state').style.display = (state.isLoading && state.pois.length === 0) ? 'flex' : 'none';
+            const list = document.getElementById('route-list'); list.innerHTML = '';
+            state.suggestedRoute.pois.forEach((p, i) => {
+                const isNext = state.isNavigating && i === state.currentStepIndex, isPassed = state.isNavigating && i < state.currentStepIndex, color = state.isMidnight ? 'moon' : 'sage';
+                const item = document.createElement('div'); item.className = `flex gap-4 items-start relative transition-opacity ${isPassed ? 'opacity-30' : 'opacity-100'}`;
+                item.innerHTML = `<div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full mt-2 border-2 relative z-10 bg-${color} border-white"></div>${i !== state.suggestedRoute.pois.length - 1 ? `<div class="w-0.5 h-12 bg-${color}/30"></div>` : ''}</div><div class="flex-1"><div class="flex justify-between items-center"><div><h5 class="font-bold ${isNext ? 'text-'+color : ''}">${p.name}</h5><span class="text-[10px] opacity-50">${p.distance.toFixed(2)}km先</span></div><button onclick="openPOI('${p.id}')" class="text-xs opacity-60 flex items-center gap-1">詳細 <i data-lucide="chevron-right" size="12"></i></button></div></div>`;
+                list.appendChild(item);
+            });
+
+            document.getElementById('nav-overlay').style.display = state.isNavigating ? 'block' : 'none';
+            document.getElementById('audio-btn').style.display = state.isNavigating ? 'block' : 'none';
+            document.getElementById('rally-count').innerText = `${state.stamps.length} 達成`;
+            document.getElementById('route-name').innerText = state.suggestedRoute.name;
+            document.getElementById('route-meta').innerText = `合計目安：約${state.suggestedRoute.totalTime}分`;
+            
+            lucide.createIcons();
+        }
+
+        // --- アクション ---
+        function toggleTheme() { state.isMidnight = !state.isMidnight; calculateRoute(); updateUI(); }
+        function switchTab(tab) {
+            state.activeTab = tab;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            updateUI();
+        }
+        function toggleStamp(id) {
+            if (state.stamps.includes(id)) state.stamps = state.stamps.filter(s => s !== id);
+            else state.stamps.push(id);
+            localStorage.setItem('sanpo-palette-stamps', JSON.stringify(state.stamps));
+            updateUI();
+        }
+        function openPOI(id) {
+            const poi = state.pois.find(p => p.id === id); if (!poi) return;
+            document.getElementById('modal-name').innerText = poi.name;
+            document.getElementById('modal-desc').innerText = `現在地から約${poi.distance.toFixed(2)}kmの場所にある${CATEGORY_LABELS[poi.category]}です。`;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+        function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+        function speak(text) { const u = new SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); }
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; const dLat = (lat2 - lat1) * (Math.PI / 180); const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
