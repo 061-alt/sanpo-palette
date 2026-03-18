@@ -3,68 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>さんぽパレット | Sanpo Palette</title>
+    <title>Sanpo Palette - 散歩を彩るパレット</title>
     
     <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Special+Elite&display=swap" rel="stylesheet">
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.4/framer-motion.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
     <style>
+        @import "tailwindcss";
+
         :root {
-            --primary: #FFB7C5;
-            --secondary: #87A96B;
-            --sage: var(--secondary);
-            --sand: #FDFBF7;
-            --wood: #2D241E;
-            --midnight: #02040A;
-            --navy-card: #0A1023;
-            --moon: #F4D03F;
-            --accent: var(--primary);
-            
-            /* Collapse Colors */
-            --rust: #8B4513;
-            --sepia: #704214;
-            --decay: #2F2F2F;
+            --accent: #FF6B6B;
+            --bg: #F8F9FA;
+            --card: #FFFFFF;
+            --text: #2D3436;
+            --accent-rgb: 255, 107, 107;
+            --card-rgb: 255, 255, 255;
         }
-        
+
+        /* 季節ごとのテーマ */
+        .theme-spring { --accent: #FF8E9E; --bg: #FFF5F7; --accent-rgb: 255, 142, 158; }
+        .theme-summer { --accent: #4FACFE; --bg: #F0F9FF; --accent-rgb: 79, 172, 254; }
+        .theme-autumn { --accent: #E67E22; --bg: #FFF9F0; --accent-rgb: 230, 126, 34; }
+        .theme-winter { --accent: #A5C9CA; --bg: #F4F9F9; --accent-rgb: 165, 201, 202; }
+
+        /* 崩壊モード (Ruined Mode) */
+        .mode-collapse {
+            --accent: #00FF41;
+            --bg: #0A0A0A;
+            --card: #141414;
+            --text: #E0E0E0;
+            --accent-rgb: 0, 255, 65;
+            filter: sepia(0.2) contrast(1.2);
+        }
+
         body {
-            font-family: 'Zen Maru Gothic', sans-serif;
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
-            background-color: var(--sand);
-            color: var(--wood);
-        }
-
-        /* 崩壊モード (Collapse Mode) Styles */
-        .collapse-mode {
-            background-color: var(--decay) !important;
-            color: #A09080 !important;
-            filter: sepia(0.5) contrast(1.2) brightness(0.8);
-            font-family: 'Special Elite', 'Zen Maru Gothic', serif;
-        }
-        .collapse-mode .card-bg {
-            background-color: rgba(40, 35, 30, 0.9) !important;
-            border: 2px solid var(--rust) !important;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8) !important;
-            position: relative;
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             overflow: hidden;
+            height: 100vh;
+            touch-action: manipulation;
         }
-        .collapse-mode .card-bg::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: url('https://www.transparenttextures.com/patterns/cracked-glass.png');
-            opacity: 0.1;
-            pointer-events: none;
-        }
-        .collapse-mode .bg-secondary { background-color: var(--rust) !important; }
-        .collapse-mode .text-secondary { color: var(--rust) !important; }
 
-        /* Glitch Animation */
+        #map {
+            height: 100%;
+            width: 100%;
+            filter: grayscale(0.2);
+        }
+
+        .mode-collapse #map {
+            filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(1.2);
+        }
+
+        .nav-glass {
+            background: rgba(var(--card-rgb), 0.8);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .mode-collapse .nav-glass {
+            background: rgba(20, 20, 20, 0.9);
+            border-top: 1px solid rgba(0, 255, 65, 0.2);
+            box-shadow: 0 -4px 20px rgba(0, 255, 65, 0.1);
+        }
+
+        .stamp-card {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1rem;
+            background: var(--card);
+            border: 2px dashed rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .stamp-card.active {
+            border: 2px solid var(--accent);
+            background: rgba(var(--accent-rgb), 0.1);
+            transform: scale(1.05);
+        }
+
+        .mode-collapse .stamp-card {
+            border-color: rgba(0, 255, 65, 0.3);
+            background: #1a1a1a;
+        }
+
+        .mode-collapse .stamp-card.active {
+            border-color: #00FF41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: #FFFFFF;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s ease;
+        }
+
+        .mode-collapse .loading-overlay {
+            background: #000000;
+            color: #00FF41;
+        }
+
+        .gauge-container {
+            height: 6px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .gauge-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 1s ease;
+        }
+
+        .glitch-text {
+            animation: glitch 1s infinite linear alternate-reverse;
+        }
+
         @keyframes glitch {
             0% { transform: translate(0); }
             20% { transform: translate(-2px, 2px); }
@@ -73,733 +141,471 @@
             80% { transform: translate(2px, -2px); }
             100% { transform: translate(0); }
         }
-        .glitch { animation: glitch 0.2s infinite; }
 
-        #map-wrapper {
-            width: 100%;
-            height: 40vh;
-            overflow: hidden;
-            border-radius: 2.5rem;
-            position: relative;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-            border: 4px solid white;
-            transition: border-color 0.6s;
-            z-index: 10;
+        .cracked-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image: url('https://www.transparenttextures.com/patterns/cracked-glass.png');
+            opacity: 0.1;
+            z-index: 100;
+            display: none;
         }
-        #map { width: 100%; height: 100%; transition: transform 0.4s ease-out; }
-
-        .tab-content { display: none; }
-        .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .midnight-mode { background-color: var(--midnight) !important; color: #FFFFFF !important; }
-        .midnight-mode .card-bg { background-color: var(--navy-card) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: #FFFFFF !important; }
-        
-        #nav-step-card { transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateY(-150%); z-index: 1000; }
-        #nav-step-card.visible { transform: translateY(0); }
-
-        .gauge-container { height: 12px; background: rgba(0,0,0,0.05); border-radius: 6px; overflow: hidden; }
-        .gauge-fill { height: 100%; background: linear-gradient(90deg, var(--secondary), var(--primary)); transition: width 1s ease-in-out; }
-
-        .midnight-mode .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
-        .collapse-mode .leaflet-tile-pane { filter: sepia(1) contrast(1.5) brightness(0.7) grayscale(0.5); }
-
-        .heart-pop { animation: heart-pop 1.5s ease-out infinite; }
-        @keyframes heart-pop { 0% { transform: scale(0) translateY(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: scale(1.5) translateY(-20px); opacity: 0; } }
-
-        /* Collapse Button Style */
-        #collapse-btn {
-            background: linear-gradient(45deg, #2d2d2d, #1a1a1a);
-            border: 1px solid #444;
-            transition: all 0.3s;
-        }
-        #collapse-btn.active {
-            background: var(--rust);
-            box-shadow: 0 0 15px var(--rust);
-            border-color: #ffaa00;
-        }
+        .mode-collapse .cracked-overlay { display: block; }
     </style>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { midnight: '#02040A', moon: '#F4D03F', rust: '#8B4513' }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="pb-32 min-h-screen">
+<body class="theme-spring">
 
-    <!-- 崩壊モード：ミッションオーバーレイ -->
-    <div id="mission-overlay" class="fixed inset-0 z-[3000] bg-black/90 hidden flex items-center justify-center p-8">
-        <div class="card-bg p-10 rounded-[3rem] w-full max-w-sm text-center space-y-8 border-4 border-rust">
-            <h2 id="mission-title" class="text-3xl font-bold text-rust glitch">物資を回収せよ</h2>
-            <div id="mission-content" class="text-lg opacity-80">
-                <!-- 動的に変更 -->
-            </div>
-            <button id="mission-action-btn" class="w-full py-5 bg-rust text-white rounded-2xl font-bold text-xl shadow-2xl active:scale-95 transition-transform">
-                回収する
-            </button>
-        </div>
-    </div>
+    <div class="cracked-overlay"></div>
 
-    <!-- 崩壊モード：ミッションクリア -->
-    <div id="clear-overlay" class="fixed inset-0 z-[4000] bg-black/95 hidden flex flex-col items-center justify-center p-8 text-center">
-        <div class="w-32 h-32 rounded-full bg-rust flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(139,69,19,0.5)]">
-            <i data-lucide="award" size="64" class="text-white"></i>
-        </div>
-        <h2 class="text-4xl font-bold text-white mb-4 glitch">MISSION CLEAR</h2>
-        <p id="clear-title" class="text-xl text-rust font-bold mb-10 tracking-widest">荒廃した街の生存者</p>
-        <button onclick="location.reload()" class="px-12 py-5 bg-white text-black rounded-full font-bold text-xl active:scale-95 transition-transform">
-            日常へ戻る
-        </button>
-    </div>
-
-    <!-- ナビゲーション・オーバーレイ -->
-    <div id="nav-step-card" class="fixed top-4 left-4 right-4 p-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 bg-white card-bg border-2 border-black/5">
-        <div id="nav-arrow-box" class="w-20 h-20 rounded-3xl bg-secondary text-white flex items-center justify-center shadow-xl">
-            <i data-lucide="arrow-up" size="48" id="nav-arrow-icon"></i>
-        </div>
-        <div class="flex-1">
-            <div class="flex items-end gap-2 mb-1">
-                <span id="nav-dist" class="text-3xl font-bold leading-none">---m</span>
-                <span class="text-xs font-bold opacity-60 uppercase tracking-widest pb-1">先を</span>
-            </div>
-            <p id="nav-instruction" class="text-xl font-bold leading-tight">目的地を設定してください</p>
-        </div>
-        <button onclick="stopNavigation()" class="p-3 opacity-30 hover:opacity-100 transition-opacity">
-            <i data-lucide="x-circle" size="32"></i>
-        </button>
-    </div>
-
-    <!-- GPS起動オーバーレイ -->
-    <div id="geo-overlay" class="fixed inset-0 z-[2000] bg-midnight flex flex-col items-center justify-center p-8 text-white text-center">
-        <div class="mb-8 relative">
-            <i data-lucide="navigation" class="w-20 h-20 text-moon animate-pulse"></i>
-            <div class="absolute -bottom-2 -right-2 bg-white rounded-full p-2 text-midnight">
-                <i data-lucide="search" class="w-5 h-5"></i>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-overlay">
+        <div class="relative mb-8">
+            <i data-lucide="cat" class="w-16 h-16 text-accent animate-bounce"></i>
+            <div class="absolute -top-2 -right-2">
+                <i data-lucide="sparkles" class="w-6 h-6 text-yellow-400 animate-pulse"></i>
             </div>
         </div>
-        <h2 class="text-3xl font-bold mb-4">直感ナビを起動中...</h2>
-        <p class="text-white/60 mb-10 text-lg">位置情報とセンサーを許可してください！</p>
-        <button id="retry-btn" class="hidden px-12 py-5 bg-moon text-midnight rounded-full font-bold text-xl shadow-2xl active:scale-95 transition-transform">
-            再試行する
-        </button>
+        <h1 class="text-2xl font-bold tracking-widest mb-2">SANPO PALETTE</h1>
+        <p class="text-sm opacity-60" id="loading-status">位置情報を取得中...</p>
+        <div class="mt-12 text-xs opacity-40 cursor-pointer hover:opacity-100 transition-opacity" onclick="hideLoading()">
+            強制的に開始 (Skip)
+        </div>
     </div>
 
-    <!-- ヘッダー -->
-    <header class="p-6 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b border-black/5 transition-colors">
-        <div class="flex items-center gap-3">
-            <div id="header-icon" class="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
-                <i data-lucide="compass"></i>
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 p-6 z-50 flex justify-between items-center pointer-events-none">
+        <div class="bg-white/80 backdrop-blur-md px-4 py-2 rounded-full shadow-sm border border-black/5 pointer-events-auto flex items-center gap-3">
+            <div class="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white">
+                <i data-lucide="map-pin" size="16"></i>
             </div>
             <div>
-                <h1 class="text-xl font-bold tracking-tight leading-none">さんぽパレット</h1>
-                <p id="season-label" class="text-[10px] uppercase tracking-[0.2em] opacity-40 mt-1">Loading Season...</p>
+                <p class="text-[10px] uppercase tracking-tighter opacity-50 font-bold">Current Palette</p>
+                <p class="text-xs font-bold" id="current-season-name">Spring Bloom</p>
             </div>
         </div>
-        <div class="flex items-center gap-2">
-            <!-- 崩壊モードボタン -->
-            <button id="collapse-btn" class="p-4 rounded-full text-white shadow-lg relative overflow-hidden">
-                <i data-lucide="skull" size="22"></i>
-                <div id="collapse-progress" class="absolute bottom-0 left-0 h-1 bg-white/50 transition-all duration-100" style="width: 0%"></div>
-            </button>
-            <button onclick="toggleMidnight()" class="p-4 rounded-full bg-secondary text-white shadow-lg" id="mode-btn">
-                <i data-lucide="moon" size="22"></i>
-            </button>
+        
+        <div id="collapse-trigger" class="w-12 h-12 bg-white/80 backdrop-blur-md rounded-full shadow-sm border border-black/5 flex items-center justify-center pointer-events-auto cursor-pointer transition-all active:scale-90" 
+             onmousedown="startCollapseTimer()" onmouseup="cancelCollapseTimer()" ontouchstart="startCollapseTimer()" ontouchend="cancelCollapseTimer()">
+            <i data-lucide="skull" id="header-icon" class="text-gray-400"></i>
         </div>
     </header>
 
-    <main class="max-w-2xl mx-auto px-6 pt-4">
+    <!-- Main Map Container -->
+    <main class="relative w-full h-full">
+        <div id="map"></div>
         
-        <!-- タブ: プランナー -->
-        <section id="tab-planner" class="tab-content active space-y-8">
-            <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg" id="time-card">
-                <div class="flex items-center justify-between mb-8">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
-                            <i data-lucide="clock"></i>
-                        </div>
-                        <h2 class="text-xl font-bold">予定時間</h2>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-3xl font-bold text-secondary" id="time-display">30分</span>
-                    </div>
-                </div>
-                <input type="range" min="30" max="120" step="15" value="30" id="time-range" class="w-full cursor-pointer">
-            </div>
-
-            <div id="map-wrapper">
-                <div id="map"></div>
-                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] pointer-events-none">
-                    <div class="relative">
-                        <div class="w-10 h-10 bg-blue-500/20 rounded-full animate-ping absolute inset-0"></div>
-                        <div class="w-10 h-10 bg-blue-500 rounded-full border-4 border-white shadow-2xl flex items-center justify-center relative">
-                            <i data-lucide="navigation" class="text-white w-5 h-5"></i>
-                        </div>
-                    </div>
+        <!-- Cat Companion Overlay -->
+        <div id="cat-companion" class="fixed pointer-events-none z-40 hidden">
+            <div class="relative">
+                <i data-lucide="cat" class="text-black w-8 h-8 drop-shadow-lg"></i>
+                <div id="cat-heart" class="absolute -top-4 -right-2 text-red-500 hidden">
+                    <i data-lucide="heart" size="12" class="fill-current animate-ping"></i>
                 </div>
             </div>
-
-            <div class="p-10 rounded-[3rem] bg-white shadow-sm card-bg" id="planner-card">
-                <div id="route-info" class="space-y-8">
-                    <div class="flex justify-between items-start gap-4">
-                        <div class="space-y-2">
-                            <h4 class="text-3xl font-bold leading-tight tracking-tight" id="route-name">現在地を取得中...</h4>
-                            <p class="text-base opacity-60 font-medium" id="route-meta">近くのスポットを探しています</p>
-                            <div id="safety-badge" class="hidden inline-flex items-center gap-1 px-3 py-1 rounded-full bg-moon/20 text-moon text-[10px] font-bold uppercase tracking-widest">
-                                <i data-lucide="shield-check" size="12"></i>
-                                Safety Route Active
-                            </div>
-                        </div>
-                        <button onclick="startFullRoute()" class="w-20 h-20 rounded-[2rem] bg-secondary text-white shadow-2xl flex items-center justify-center" id="start-route-btn">
-                            <i data-lucide="play" size="36" class="fill-current ml-1"></i>
-                        </button>
-                    </div>
-                    <div id="route-list" class="space-y-8"></div>
-                </div>
-            </div>
-        </section>
-
-        <!-- タブ: ラリー -->
-        <section id="tab-rally" class="tab-content space-y-6">
-            <div id="poi-list" class="space-y-4"></div>
-        </section>
-
-        <!-- タブ: マイページ -->
-        <section id="tab-trophy" class="tab-content space-y-8">
-            <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-6">
-                <div class="flex items-center gap-6">
-                    <div class="w-24 h-24 rounded-full bg-midnight flex items-center justify-center relative border-4 border-accent/20">
-                        <i data-lucide="cat" size="48" class="text-white" id="cat-status-icon"></i>
-                        <div id="cat-heart" class="hidden absolute -top-2 -right-2 text-red-500 heart-pop">
-                            <i data-lucide="heart" class="fill-current"></i>
-                        </div>
-                    </div>
-                    <div class="flex-1">
-                        <h3 class="text-2xl font-bold" id="cat-level-name">黒猫の影</h3>
-                        <p class="text-sm opacity-60" id="cat-level-desc">まだ遠くから見守っています...</p>
-                    </div>
-                </div>
-                <div class="gauge-container">
-                    <div id="cat-gauge" class="gauge-fill" style="width: 0%"></div>
-                </div>
-            </div>
-
-            <!-- 崩壊モード実績 -->
-            <div id="collapse-stats" class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-4 hidden">
-                <h3 class="text-xl font-bold text-rust">崩壊した街の記録</h3>
-                <div class="flex justify-between items-center">
-                    <span class="opacity-60">ミッションクリア回数</span>
-                    <span id="collapse-clear-count" class="text-2xl font-bold text-rust">0</span>
-                </div>
-                <div id="collapse-title-display" class="p-4 bg-rust/10 rounded-xl text-rust font-bold text-center">
-                    生存者
-                </div>
-            </div>
-        </section>
+        </div>
     </main>
 
-    <!-- ボトムナビ -->
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 p-6 border-t bg-white/90 backdrop-blur-2xl z-[100] card-bg">
-        <div class="max-w-2xl mx-auto flex justify-around items-center">
-            <button onclick="switchTab('planner')" class="nav-btn flex flex-col items-center gap-2 text-secondary" id="btn-planner">
-                <i data-lucide="navigation" size="26"></i>
-                <span class="text-[11px] font-bold">プラン</span>
-            </button>
-            <button onclick="switchTab('rally')" class="nav-btn flex flex-col items-center gap-2 opacity-40" id="btn-rally">
-                <i data-lucide="map-pin" size="26"></i>
-                <span class="text-[11px] font-bold">ラリー</span>
-            </button>
-            <button onclick="switchTab('trophy')" class="nav-btn flex flex-col items-center gap-2 opacity-40" id="btn-trophy">
-                <i data-lucide="cat" size="26"></i>
-                <span class="text-[11px] font-bold">マイページ</span>
-            </button>
+    <!-- UI Panels -->
+    <div id="panel-container" class="fixed bottom-24 left-4 right-4 z-50 pointer-events-none">
+        <!-- Stamp Panel -->
+        <div id="stamp-panel" class="bg-white/90 backdrop-blur-xl p-6 rounded-3xl shadow-2xl border border-black/5 pointer-events-auto transform translate-y-full transition-transform duration-500 hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="font-bold text-lg flex items-center gap-2">
+                    <i data-lucide="palette" class="text-accent"></i>
+                    季節のスタンプ帳
+                </h2>
+                <button onclick="togglePanel('stamp')" class="opacity-40 hover:opacity-100"><i data-lucide="x"></i></button>
+            </div>
+            <div class="grid grid-cols-4 gap-3" id="stamp-grid">
+                <!-- Stamps will be injected here -->
+            </div>
+            <p class="mt-6 text-xs opacity-50 text-center">3つ集めると特別な称号が手に入ります</p>
         </div>
+
+        <!-- My Page Panel -->
+        <div id="mypage-panel" class="bg-white/90 backdrop-blur-xl p-6 rounded-3xl shadow-2xl border border-black/5 pointer-events-auto transform translate-y-full transition-transform duration-500 hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="font-bold text-lg">旅の記録</h2>
+                <button onclick="togglePanel('mypage')" class="opacity-40 hover:opacity-100"><i data-lucide="x"></i></button>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="flex items-center gap-4 p-4 bg-black/5 rounded-2xl">
+                    <div class="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-white">
+                        <i data-lucide="footprints"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase opacity-50">Total Distance</p>
+                        <p class="text-xl font-bold font-mono" id="stat-distance">0.00 km</p>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-black/5 rounded-2xl">
+                    <div class="flex items-center gap-3 mb-2">
+                        <i data-lucide="cat" class="text-accent"></i>
+                        <div class="flex-1">
+                            <p class="text-xs font-bold" id="cat-level-name">黒猫の影</p>
+                            <p class="text-sm opacity-60" id="cat-level-desc">まだ遠くから見守っています...</p>
+                        </div>
+                    </div>
+                    <div class="gauge-container">
+                        <div id="cat-gauge" class="gauge-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div id="seasonal-trophies" class="space-y-2">
+                    <!-- Seasonal titles will be injected here -->
+                </div>
+
+                <div id="collapse-stats" class="hidden p-4 bg-green-500/10 border border-green-500/20 rounded-2xl">
+                    <p class="text-[10px] uppercase text-green-500 font-bold mb-2 glitch-text">System Corruption</p>
+                    <div class="flex justify-between items-end">
+                        <p class="text-2xl font-mono text-green-500" id="stat-collapse">0%</p>
+                        <i data-lucide="activity" class="text-green-500 animate-pulse"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 h-20 nav-glass z-50 flex justify-around items-center px-6">
+        <button onclick="togglePanel('stamp')" class="flex flex-col items-center gap-1 group">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group-active:scale-90">
+                <i data-lucide="palette" class="text-gray-400 group-hover:text-accent"></i>
+            </div>
+            <span class="text-[10px] font-bold opacity-40 group-hover:opacity-100">Stamp</span>
+        </button>
+        
+        <button onclick="centerMap()" class="relative -top-6 w-16 h-16 bg-accent rounded-full shadow-lg shadow-accent/40 flex items-center justify-center text-white transition-all active:scale-90">
+            <i data-lucide="navigation" size="28"></i>
+        </button>
+
+        <button onclick="togglePanel('mypage')" class="flex flex-col items-center gap-1 group">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group-active:scale-90">
+                <i data-lucide="user" class="text-gray-400 group-hover:text-accent"></i>
+            </div>
+            <span class="text-[10px] font-bold opacity-40 group-hover:opacity-100">My Page</span>
+        </button>
     </nav>
 
-    <audio id="collapse-hum" loop src="https://www.soundjay.com/mechanical/sounds/mechanical-hum-1.mp3"></audio>
+    <!-- Audio Elements -->
+    <audio id="se-meow" src="https://assets.mixkit.co/active_storage/sfx/2361/2361-preview.mp3"></audio>
+    <audio id="se-stamp" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
 
     <script>
-        // --- State ---
-        let state = {
-            isMidnight: false,
-            isCollapseMode: false,
-            activeTab: 'planner',
-            plannedTime: 30,
-            userLocation: null,
-            startLocation: null,
-            heading: 0,
-            pois: [],
-            selectedCustomPois: [],
-            isCustomRoute: false,
-            stamps: JSON.parse(localStorage.getItem('sanpo-stamps') || '[]'),
-            totalDistance: parseFloat(localStorage.getItem('sanpo-total-dist') || '0'),
-            seasonalStats: JSON.parse(localStorage.getItem('sanpo-seasonal') || '{"spring":0,"summer":0,"autumn":0,"winter":0}'),
-            collapseClears: parseInt(localStorage.getItem('sanpo-collapse-clears') || '0'),
-            map: null,
-            routeLine: null,
-            isNavigating: false,
-            suggestedRoute: [],
-            currentStepIndex: 0,
-            lastAnnouncedStep: -1,
-            currentRouteSteps: [],
-            poiMarkers: [],
-            catMarker: null,
-            lastLocation: null,
-            
-            // Collapse Mission State
-            missionStep: 0, // 0: none, 1: scavenge, 2: cat, 3: return
-            offPathStartTime: null,
-            hasResources: false,
-            catFed: false
-        };
-
+        // --- Constants & State ---
         const SEASONS = [
-            { id: 'winter', name: '冬', label: 'Winter', months: [11, 0, 1], colors: { p: '#A5F2F3', s: '#FFFFFF' }, title: '寒月を仰ぐ歩き手' },
-            { id: 'spring', name: '春', label: 'Spring', months: [2, 3, 4], colors: { p: '#FFB7C5', s: '#87A96B' }, title: '春の息吹を辿る者' },
-            { id: 'summer', name: '夏', label: 'Summer', months: [5, 6, 7], colors: { p: '#00BFFF', s: '#FFD700' }, title: '陽炎を往く探索者' },
-            { id: 'autumn', name: '秋', label: 'Autumn', months: [8, 9, 10], colors: { p: '#D35400', s: '#F39C12' }, title: '錦秋の旅人' }
+            { id: 'spring', title: '春の息吹を辿る者', months: [2, 3, 4], theme: 'theme-spring' },
+            { id: 'summer', title: '夏の陽炎を往く探索者', months: [5, 6, 7], theme: 'theme-summer' },
+            { id: 'autumn', title: '秋の静寂を聴く者', months: [8, 9, 10], theme: 'theme-autumn' },
+            { id: 'winter', title: '冬の銀華を愛でる者', months: [11, 0, 1], theme: 'theme-winter' }
         ];
 
-        const CATEGORY_LABELS = { shrine: '神社・寺院', park: '公園', historic: '史跡', other: 'スポット' };
-        const WALKING_SPEED_KMH = 4.5;
+        let state = {
+            isCollapseMode: false,
+            totalDistance: 0,
+            stamps: [],
+            seasonalStats: { spring: 0, summer: 0, autumn: 0, winter: 0 },
+            lastPos: null,
+            isInitialized: false
+        };
+
+        let map, userMarker;
+        let collapseTimer;
 
         // --- Initialization ---
-        function init() {
-            applySeasonalUI();
-            lucide.createIcons();
-            initMap();
-            getLocation();
-            setupOrientation();
-            setupCollapseTrigger();
-            
-            document.getElementById('time-range').addEventListener('input', (e) => {
-                state.plannedTime = parseInt(e.target.value);
-                document.getElementById('time-display').innerText = `${state.plannedTime}分`;
-                state.isCustomRoute = false;
-                state.selectedCustomPois = [];
-                calculateRoute();
-                updateUI();
-            });
-            
-            document.getElementById('retry-btn').onclick = getLocation;
+        async function init() {
+            try {
+                loadState();
+                applyTheme();
+                
+                // 3.5秒後に強制的にローディングを隠すセーフティ
+                setTimeout(() => {
+                    if (!state.isInitialized) hideLoading();
+                }, 3500);
+
+                if (navigator.geolocation) {
+                    navigator.geolocation.watchPosition(updatePosition, handleGeoError, {
+                        enableHighAccuracy: true,
+                        maximumAge: 1000
+                    });
+                } else {
+                    console.warn("Geolocation not supported");
+                    hideLoading();
+                }
+            } catch (e) {
+                console.error("Initialization error:", e);
+                hideLoading();
+            }
         }
 
-        function setupCollapseTrigger() {
-            const btn = document.getElementById('collapse-btn');
-            const progress = document.getElementById('collapse-progress');
-            let timer;
-            let startTime;
-
-            const start = () => {
-                startTime = Date.now();
-                progress.style.width = '0%';
-                timer = setInterval(() => {
-                    const elapsed = Date.now() - startTime;
-                    const p = Math.min((elapsed / 2000) * 100, 100);
-                    progress.style.width = `${p}%`;
-                    if (elapsed >= 2000) {
-                        clearInterval(timer);
-                        toggleCollapseMode();
-                        progress.style.width = '0%';
-                    }
-                }, 50);
+        function hideLoading() {
+            const screen = document.getElementById('loading-screen');
+            if (!screen || screen.style.display === 'none') return;
+            
+            screen.style.opacity = '0';
+            setTimeout(() => {
+                screen.style.display = 'none';
+                state.isInitialized = true;
+            }, 800);
+            
+            // Audio Context Unlock
+            const unlock = () => {
+                const meow = document.getElementById('se-meow');
+                if (meow) {
+                    meow.play().then(() => meow.pause()).catch(() => {});
+                }
+                document.removeEventListener('click', unlock);
             };
-
-            const end = () => {
-                clearInterval(timer);
-                progress.style.width = '0%';
-            };
-
-            btn.addEventListener('mousedown', start);
-            btn.addEventListener('touchstart', start);
-            btn.addEventListener('mouseup', end);
-            btn.addEventListener('touchend', end);
-            btn.addEventListener('mouseleave', end);
+            document.addEventListener('click', unlock);
         }
 
-        function toggleCollapseMode() {
-            state.isCollapseMode = !state.isCollapseMode;
-            const hum = document.getElementById('collapse-hum');
+        function applyTheme() {
+            const month = new Date().getMonth();
+            const season = SEASONS.find(s => s.months.includes(month)) || SEASONS[0];
+            document.body.className = state.isCollapseMode ? 'mode-collapse' : season.theme;
+            document.getElementById('current-season-name').innerText = state.isCollapseMode ? 'CORRUPTED' : season.id.toUpperCase();
             
             if (state.isCollapseMode) {
-                document.body.classList.add('collapse-mode');
-                document.getElementById('collapse-btn').classList.add('active');
-                hum.play();
-                speak("崩壊モードを起動しました。物資を回収し、白い猫を救ってください。");
-                state.isMidnight = false; // Override midnight
+                document.getElementById('header-icon').classList.add('text-green-500', 'glitch-text');
+                document.getElementById('collapse-stats').classList.remove('hidden');
             } else {
-                document.body.classList.remove('collapse-mode');
-                document.getElementById('collapse-btn').classList.remove('active');
-                hum.pause();
-                stopNavigation();
+                document.getElementById('header-icon').classList.remove('text-green-500', 'glitch-text');
+                document.getElementById('collapse-stats').classList.add('hidden');
             }
-            calculateRoute();
-            updateUI();
         }
 
-        function applySeasonalUI() {
-            const month = new Date().getMonth();
-            const season = SEASONS.find(s => s.months.includes(month));
-            document.documentElement.style.setProperty('--primary', season.colors.p);
-            document.documentElement.style.setProperty('--secondary', season.colors.s);
-            document.getElementById('season-label').innerText = `Sanpo Palette | ${season.label}`;
+        // --- Map & Location ---
+        function updatePosition(position) {
+            const { latitude, longitude } = position.coords;
+            const currentPos = { lat: latitude, lng: longitude };
+
+            if (!map) {
+                initMap(currentPos);
+                hideLoading();
+            }
+
+            if (state.lastPos) {
+                const dist = calculateDistance(state.lastPos, currentPos);
+                if (dist > 0.005) { // 5m以上移動
+                    state.totalDistance += dist;
+                    updateStats();
+                    checkCatInteraction();
+                    saveState();
+                }
+            }
+
+            state.lastPos = currentPos;
+            if (userMarker) userMarker.setPosition(currentPos);
+            updateCatPosition(currentPos);
         }
 
-        function initMap() {
-            state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([35.6895, 139.6917], 17);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
+        function initMap(pos) {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: pos,
+                zoom: 17,
+                disableDefaultUI: true,
+                styles: state.isCollapseMode ? [] : [
+                    { "featureType": "all", "elementType": "labels.text.fill", "stylers": [{ "color": "#7c93a3" }, { "lightness": "-10" }] }
+                ]
+            });
+
+            userMarker = new google.maps.Marker({
+                position: pos,
+                map: map,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: state.isCollapseMode ? '#00FF41' : '#FF6B6B',
+                    fillOpacity: 1,
+                    strokeWeight: 4,
+                    strokeColor: '#FFFFFF'
+                }
+            });
+
+            generateDummySpots(pos);
         }
 
-        function setupOrientation() {
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', (e) => {
-                    let heading = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : 0);
-                    state.heading = heading;
-                    updateMapRotation();
+        function updateCatPosition(userPos) {
+            const level = getCatLevel();
+            if (level < 2) return;
+
+            const catEl = document.getElementById('cat-companion');
+            catEl.classList.remove('hidden');
+            
+            // 簡易的な中央付近への表示
+            catEl.style.left = '50%';
+            catEl.style.top = '60%';
+        }
+
+        // --- Mechanics ---
+        function calculateDistance(p1, p2) {
+            const R = 6371;
+            const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+            const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function getCatLevel() {
+            if (state.totalDistance > 15) return 3;
+            if (state.totalDistance > 5) return 2;
+            if (state.totalDistance > 0) return 1;
+            return 0;
+        }
+
+        function checkCatInteraction() {
+            const level = getCatLevel();
+            if (level >= 2 && Math.random() < 0.05) {
+                const meow = document.getElementById('se-meow');
+                if (meow) meow.play().catch(() => {});
+            }
+        }
+
+        function generateDummySpots(pos) {
+            for (let i = 0; i < 5; i++) {
+                const lat = pos.lat + (Math.random() - 0.5) * 0.01;
+                const lng = pos.lng + (Math.random() - 0.5) * 0.01;
+                
+                const marker = new google.maps.Marker({
+                    position: { lat, lng },
+                    map: map,
+                    icon: {
+                        url: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
+                        scaledSize: new google.maps.Size(30, 30)
+                    }
+                });
+
+                marker.addListener('click', () => {
+                    collectStamp(i);
                 });
             }
         }
 
-        function updateMapRotation() {
-            const mapEl = document.getElementById('map');
-            if (mapEl && state.isNavigating) {
-                mapEl.style.transform = `rotate(${-state.heading}deg)`;
-            } else if (mapEl) {
-                mapEl.style.transform = `none`;
-            }
-        }
-
-        function getLocation() {
-            navigator.geolocation.watchPosition(pos => {
-                const current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                if (state.isNavigating && state.lastLocation) {
-                    const d = getDistance(state.lastLocation.lat, state.lastLocation.lng, current.lat, current.lng);
-                    if (d > 0.005) {
-                        state.totalDistance += d;
-                        localStorage.setItem('sanpo-total-dist', state.totalDistance.toFixed(3));
-                        state.lastLocation = current;
-                    }
-                } else { state.lastLocation = current; }
-                state.userLocation = current;
-                if (!state.startLocation) state.startLocation = state.userLocation;
-                if (state.isNavigating) {
-                    state.map.setView([state.userLocation.lat, state.userLocation.lng]);
-                    updateNavigation();
-                }
-                if (state.pois.length === 0) fetchPOIs();
-                updateCatMarker();
-            }, null, { enableHighAccuracy: true });
-        }
-
-        function getCatLevel() {
-            if (state.totalDistance >= 15) return 3;
-            if (state.totalDistance >= 5) return 2;
-            return 1;
-        }
-
-        function updateCatMarker() {
-            if (!state.map || !state.userLocation) return;
-            const level = getCatLevel();
-            if (level === 3 && !state.isCollapseMode) {
-                const catPos = [state.userLocation.lat + 0.0001, state.userLocation.lng + 0.0001];
-                if (!state.catMarker) {
-                    const catIcon = L.divIcon({ className: 'cat-marker', html: '<div class="relative"><i data-lucide="cat" class="text-midnight fill-current"></i><div class="absolute -top-4 -right-2 text-red-500 heart-pop"><i data-lucide="heart" size="12" class="fill-current"></i></div></div>', iconSize: [24, 24] });
-                    state.catMarker = L.marker(catPos, { icon: catIcon }).addTo(state.map);
-                    lucide.createIcons();
-                } else { state.catMarker.setLatLng(catPos); }
-            } else if (state.catMarker) { state.map.removeLayer(state.catMarker); state.catMarker = null; }
-        }
-
-        async function fetchPOIs() {
-            const { lat, lng } = state.startLocation || state.userLocation;
-            const query = `[out:json][timeout:25];(node["amenity"="place_of_worship"](around:2500,${lat},${lng});node["leisure"="park"](around:2500,${lat},${lng});node["historic"](around:2500,${lat},${lng}););out center;`;
-            try {
-                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                state.pois = data.elements.filter(el => el.tags && el.tags.name).map(el => ({
-                    id: el.id, name: el.tags.name, lat: el.lat || el.center.lat, lng: el.lon || el.center.lon,
-                    category: el.tags.amenity === 'place_of_worship' ? 'shrine' : el.tags.leisure === 'park' ? 'park' : 'historic',
-                    distance: getDistance(lat, lng, el.lat || el.center.lat, el.lon || el.center.lon)
-                })).sort((a, b) => a.distance - b.distance);
-                calculateRoute();
-                updateUI();
-            } catch (e) { console.error(e); }
-        }
-
-        function calculateRoute() {
-            if (state.pois.length === 0 || !state.startLocation) return;
-            let loopPois = [];
+        function collectStamp(id) {
+            if (state.stamps.includes(id)) return;
             
-            if (state.isCollapseMode) {
-                // Collapse Mode: Exactly 2 spots for ~60 min
-                loopPois = [state.pois[0], state.pois[Math.min(state.pois.length-1, 3)]];
-                state.plannedTime = 60;
-                state.missionStep = 1;
-                state.hasResources = false;
-                state.catFed = false;
-            } else if (state.isCustomRoute && state.selectedCustomPois.length > 0) {
-                loopPois = state.pois.filter(p => state.selectedCustomPois.includes(p.id));
-                loopPois.sort((a, b) => a.distance - b.distance);
-                let totalDist = 0;
-                let prev = state.startLocation;
-                loopPois.forEach(p => { totalDist += getDistance(prev.lat, prev.lng, p.lat, p.lng); prev = p; });
-                totalDist += getDistance(prev.lat, prev.lng, state.startLocation.lat, state.startLocation.lng);
-                state.plannedTime = Math.round((totalDist / WALKING_SPEED_KMH) * 60 + (loopPois.length * 10));
+            state.stamps.push(id);
+            const stampSound = document.getElementById('se-stamp');
+            if (stampSound) stampSound.play().catch(() => {});
+            
+            const month = new Date().getMonth();
+            const season = SEASONS.find(s => s.months.includes(month)) || SEASONS[0];
+            state.seasonalStats[season.id]++;
+            
+            updateStats();
+            saveState();
+            alert("スタンプを獲得しました！");
+        }
+
+        // --- UI & State Management ---
+        function togglePanel(type) {
+            const stamp = document.getElementById('stamp-panel');
+            const mypage = document.getElementById('mypage-panel');
+            
+            if (type === 'stamp') {
+                stamp.classList.toggle('hidden');
+                setTimeout(() => stamp.classList.toggle('translate-y-full'), 10);
+                mypage.classList.add('hidden', 'translate-y-full');
+                renderStamps();
             } else {
-                const totalDistanceKm = (state.plannedTime / 60) * WALKING_SPEED_KMH;
-                const targetRadius = totalDistanceKm / 3.5;
-                let candidates = state.pois.filter(p => p.distance <= targetRadius);
-                let count = Math.min(Math.max(Math.floor(state.plannedTime / 30) + 1, 2), 4);
-                if (candidates.length > 0) {
-                    loopPois.push(candidates[0]);
-                    for (let i = 1; i < count; i++) {
-                        let bestNext = null;
-                        let maxD = -1;
-                        candidates.forEach(c => {
-                            if (loopPois.includes(c)) return;
-                            let d = getDistance(loopPois[loopPois.length-1].lat, loopPois[loopPois.length-1].lng, c.lat, c.lng);
-                            if (d > maxD) { maxD = d; bestNext = c; }
-                        });
-                        if (bestNext) loopPois.push(bestNext);
-                    }
-                }
-            }
-            state.suggestedRoute = [...loopPois, { ...state.startLocation, name: "スタート地点 (ゴール)", isGoal: true }];
-            if (state.poiMarkers) state.poiMarkers.forEach(m => state.map.removeLayer(m));
-            state.poiMarkers = state.suggestedRoute.map((p, i) => {
-                let color = p.isGoal ? '#3b82f6' : (state.isMidnight ? '#F4D03F' : 'var(--secondary)');
-                if (state.isCollapseMode) color = '#8B4513';
-                return L.circleMarker([p.lat, p.lng], { radius: 10, fillColor: color, color: '#fff', weight: 3, fillOpacity: 0.9 }).addTo(state.map);
-            });
-        }
-
-        async function startFullRoute() {
-            if (state.suggestedRoute.length === 0) return;
-            state.isNavigating = true;
-            state.currentStepIndex = 0;
-            state.lastAnnouncedStep = -1;
-            state.offPathStartTime = null;
-            await fetchNextLeg();
-            document.getElementById('nav-step-card').classList.add('visible');
-            updateUI();
-            if (state.isCollapseMode) speak("ミッション開始。ルートを外れることは許されません。");
-            else speak(`${state.isCustomRoute ? "カスタム" : "おすすめ"}ルートを開始します。`);
-        }
-
-        async function fetchNextLeg() {
-            const start = state.currentStepIndex === 0 ? state.userLocation : state.suggestedRoute[state.currentStepIndex - 1];
-            const end = state.suggestedRoute[state.currentStepIndex];
-            
-            // Collapse Mode: Force roundabout by adding a waypoint
-            let coords = `${start.lng},${start.lat};${end.lng},${end.lat}`;
-            if (state.isCollapseMode) {
-                const midLat = (start.lat + end.lat) / 2 + 0.002;
-                const midLng = (start.lng + end.lng) / 2 + 0.002;
-                coords = `${start.lng},${start.lat};${midLng},${midLat};${end.lng},${end.lat}`;
-            }
-
-            const profile = (state.isMidnight && !state.isCollapseMode) ? 'driving' : 'walking';
-            const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&steps=true`;
-            try {
-                const res = await fetch(url);
-                const data = await res.json();
-                const route = data.routes[0];
-                if (state.routeLine) state.map.removeLayer(state.routeLine);
-                state.routeLine = L.geoJSON(route.geometry, { style: { color: state.isCollapseMode ? '#8B4513' : (state.isMidnight ? '#F4D03F' : '#3b82f6'), weight: 12, opacity: 0.8 } }).addTo(state.map);
-                state.currentRouteSteps = route.legs.flatMap(l => l.steps);
-            } catch (e) { console.error(e); }
-        }
-
-        function updateNavigation() {
-            if (!state.currentRouteSteps || state.currentRouteSteps.length === 0) return;
-            const nextStep = state.currentRouteSteps[0];
-            const stepCoord = { lat: nextStep.maneuver.location[1], lng: nextStep.maneuver.location[0] };
-            const dist = Math.round(getDistance(state.userLocation.lat, state.userLocation.lng, stepCoord.lat, stepCoord.lng) * 1000);
-            
-            // Forbidden Path Logic
-            if (dist > 150) {
-                if (state.isCollapseMode) {
-                    if (!state.offPathStartTime) state.offPathStartTime = Date.now();
-                    const elapsed = (Date.now() - state.offPathStartTime) / 1000;
-                    if (elapsed > 60) {
-                        speak("ミッション失敗。帰還します。");
-                        toggleCollapseMode();
-                        return;
-                    }
-                } else {
-                    speak("ルートから外れました。再検索しています。");
-                    fetchNextLeg();
-                    return;
-                }
-            } else { state.offPathStartTime = null; }
-
-            document.getElementById('nav-dist').innerText = `${dist}m`;
-            document.getElementById('nav-instruction').innerText = nextStep.maneuver.instruction;
-            updateNavIcon(nextStep.maneuver.modifier);
-            
-            if (dist < 15) {
-                state.currentRouteSteps.shift();
-                if (nextStep.maneuver.type === 'arrive') handleArrive();
+                mypage.classList.toggle('hidden');
+                setTimeout(() => mypage.classList.toggle('translate-y-full'), 10);
+                stamp.classList.add('hidden', 'translate-y-full');
+                updateStats();
             }
         }
 
-        function handleArrive() {
-            if (state.isCollapseMode) {
-                if (state.missionStep === 1) {
-                    showMissionPopup("物資を回収せよ", "廃墟の中に食料と武器を見つけた。", "回収する", () => {
-                        state.hasResources = true;
-                        state.missionStep = 2;
-                        speak("物資を回収しました。白い猫を探してください。");
-                        nextLeg();
-                    });
-                } else if (state.missionStep === 2) {
-                    showMissionPopup("白い猫を発見", "お腹を空かせた白い猫がこちらを見ている。", "物資を分ける", () => {
-                        state.catFed = true;
-                        state.missionStep = 3;
-                        speak("猫は満足したようです。拠点へ戻りましょう。");
-                        nextLeg();
-                    });
-                } else if (state.missionStep === 3) {
-                    showClearScreen();
-                }
-            } else {
-                const arrivedPoi = state.suggestedRoute[state.currentStepIndex];
-                if (!arrivedPoi.isGoal) toggleStamp(arrivedPoi.id);
-                if (state.currentStepIndex < state.suggestedRoute.length - 1) {
-                    state.currentStepIndex++;
-                    nextLeg();
-                } else { stopNavigation(); }
-            }
-        }
-
-        function nextLeg() { fetchNextLeg(); updateUI(); }
-
-        function showMissionPopup(title, content, btnText, callback) {
-            const overlay = document.getElementById('mission-overlay');
-            document.getElementById('mission-title').innerText = title;
-            document.getElementById('mission-content').innerText = content;
-            const btn = document.getElementById('mission-action-btn');
-            btn.innerText = btnText;
-            overlay.classList.remove('hidden');
-            btn.onclick = () => { overlay.classList.add('hidden'); callback(); };
-        }
-
-        function showClearScreen() {
-            state.collapseClears++;
-            localStorage.setItem('sanpo-collapse-clears', state.collapseClears);
-            const overlay = document.getElementById('clear-overlay');
-            const title = state.collapseClears >= 5 ? "白猫の救世主" : "荒廃した街の生存者";
-            document.getElementById('clear-title').innerText = title;
-            overlay.classList.remove('hidden');
-            speak("ミッションコンプリート。あなたは生き延びました。");
-        }
-
-        function updateUI() {
-            const body = document.body;
-            const card = document.getElementById('nav-step-card');
-            const arrowBox = document.getElementById('nav-arrow-box');
-            const modeBtn = document.getElementById('mode-btn');
-            const midnightCat = document.getElementById('midnight-cat');
-            const safetyBadge = document.getElementById('safety-badge');
-
-            if (state.isMidnight) {
-                body.classList.add('midnight-mode');
-                midnightCat.classList.remove('hidden');
-                safetyBadge.classList.remove('hidden');
-                card.classList.add('midnight-mode');
-                arrowBox.classList.replace('bg-secondary', 'bg-moon');
-                arrowBox.classList.replace('text-white', 'text-midnight');
-                modeBtn.classList.replace('bg-secondary', 'bg-moon');
-                modeBtn.classList.replace('text-white', 'text-midnight');
-                modeBtn.innerHTML = '<i data-lucide="sun" size="22"></i>';
-            } else {
-                body.classList.remove('midnight-mode');
-                midnightCat.classList.add('hidden');
-                safetyBadge.classList.add('hidden');
-                card.classList.remove('midnight-mode');
-                arrowBox.classList.replace('bg-moon', 'bg-secondary');
-                arrowBox.classList.replace('text-midnight', 'text-white');
-                modeBtn.classList.replace('bg-moon', 'bg-secondary');
-                modeBtn.classList.replace('text-midnight', 'text-white');
-                modeBtn.innerHTML = '<i data-lucide="moon" size="22"></i>';
-            }
-
-            // Route List
-            const routeList = document.getElementById('route-list');
-            routeList.innerHTML = '';
-            state.suggestedRoute.forEach((p, i) => {
+        function renderStamps() {
+            const grid = document.getElementById('stamp-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
                 const div = document.createElement('div');
-                div.className = `p-6 rounded-[2rem] flex items-center gap-5 card-bg relative z-10 ${state.isMidnight ? 'bg-navy-card' : 'bg-gray-50'}`;
-                div.innerHTML = `
-                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center bg-secondary/10 text-secondary font-bold text-xl">${i+1}</div>
-                    <div class="flex-1">
-                        <h5 class="font-bold text-xl">${p.name}</h5>
-                        <p class="text-xs opacity-50 uppercase tracking-widest">${p.isGoal ? 'ゴール' : CATEGORY_LABELS[p.category]}</p>
-                    </div>
-                `;
-                routeList.appendChild(div);
-            });
-
-            if (state.suggestedRoute.length > 0) {
-                document.getElementById('route-name').innerText = state.isCollapseMode ? "崩壊した街の探索" : (state.isCustomRoute ? "カスタム周回" : `${state.plannedTime}分の周回`);
+                div.className = `stamp-card ${state.stamps.includes(i) ? 'active' : ''}`;
+                div.innerHTML = state.stamps.includes(i) ? '<i data-lucide="check" class="text-accent"></i>' : '';
+                grid.appendChild(div);
             }
+            lucide.createIcons();
+        }
 
-            // Rally List
-            const poiList = document.getElementById('poi-list');
-            poiList.innerHTML = '';
-            state.pois.forEach(p => {
-                const isStamped = state.stamps.includes(p.id);
-                const isSelected = state.selectedCustomPois.includes(p.id);
-                const div = document.createElement('div');
-                div.className = `p-6 rounded-[2.5rem] flex justify-between items-center card-bg transition-all cursor-pointer ${isSelected ? 'ring-4 ring-secondary' : ''}`;
-                div.onclick = () => toggleCustomPoi(p.id);
-                div.innerHTML = `
-                    <div class="flex items-center gap-5">
-                        <div class="w-16 h-16 rounded-3xl flex items-center justify-center ${isStamped ? 'bg-secondary text-white' : 'bg-gray-100 text-gray-400'}">
-                            <i data-lucide="${isStamped ? 'check' : 'map-pin'}" size="28"></i>
-                        </div>
-                        <div><h4 class="font-bold text-xl">${p.name}</h4><p class="text-xs opacity-50">${p.distance.toFixed(2)}km</p></div>
-                    </div>
-                `;
-                poiList.appendChild(div);
-            });
-
-            // Cat Intimacy & Collapse Stats
+        function updateStats() {
+            document.getElementById('stat-distance').innerText = `${state.totalDistance.toFixed(2)} km`;
+            
             const level = getCatLevel();
             document.getElementById('cat-level-name').innerText = ["", "黒猫の影", "人懐っこい黒猫", "旅の相棒"][level];
+            document.getElementById('cat-level-desc').innerText = [
+                "", 
+                "まだ遠くから見守っています...", 
+                "少しずつ心を開いてくれているようです。時々鳴き声が聞こえます。", 
+                "あなたの後ろをトコトコとついてくるようになりました！"
+            ][level];
             document.getElementById('cat-gauge').style.width = `${Math.min((state.totalDistance / 15) * 100, 100)}%`;
             document.getElementById('cat-heart').classList.toggle('hidden', level < 3);
             
-            if (state.collapseClears > 0) {
-                document.getElementById('collapse-stats').classList.remove('hidden');
-                document.getElementById('collapse-clear-count').innerText = state.collapseClears;
-                document.getElementById('collapse-title-display').innerText = state.collapseClears >= 5 ? "白猫の救世主" : "荒廃した街の生存者";
+            const seasonalTrophies = document.getElementById('seasonal-trophies');
+            if (seasonalTrophies) {
+                seasonalTrophies.innerHTML = '';
+                SEASONS.forEach(s => {
+                    if (state.seasonalStats[s.id] >= 3) {
+                        const div = document.createElement('div');
+                        div.className = "p-3 bg-accent/10 rounded-xl text-accent font-bold text-xs flex items-center justify-center gap-2";
+                        div.innerHTML = `<i data-lucide="sparkles" size="14"></i> ${s.title}`;
+                        seasonalTrophies.appendChild(div);
+                    }
+                });
+            }
+
+            if (state.isCollapseMode) {
+                document.getElementById('stat-collapse').innerText = `${Math.min(state.totalDistance * 10, 100).toFixed(0)}%`;
             }
 
             lucide.createIcons();
         }
 
-        function switchTab(tab) {
-            state.activeTab = tab;
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.getElementById(`tab-${tab}`).classList.add('active');
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.add('opacity-40'));
-            document.getElementById(`btn-${tab}`).classList.remove('opacity-40');
-            updateUI();
+        function startCollapseTimer() {
+            collapseTimer = setTimeout(() => {
+                state.isCollapseMode = !state.isCollapseMode;
+                applyTheme();
+                saveState();
+                alert(state.isCollapseMode ? "システムが崩壊しました..." : "世界が再構築されました。");
+            }, 2000);
         }
 
-        function toggleMidnight() { state.isMidnight = !state.isMidnight; updateUI(); calculateRoute(); if (state.isNavigating) fetchNextLeg(); }
-        function toggleStamp(id) { if (!state.stamps.includes(id)) state.stamps.push(id); localStorage.setItem('sanpo-stamps', JSON.stringify(state.stamps)); updateUI(); }
-        function speak(text) { const u = new SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); }
-        function getDistance(lat1, lon1, lat2, lon2) { const R = 6371; const dLat = (lat2 - lat1) * (Math.PI / 180); const dLon = (lon2 - lon1) * (Math.PI / 180); const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); }
-        function updateNavIcon(mod) { const icon = document.getElementById('nav-arrow-icon'); const icons = { left: 'arrow-up-left', right: 'arrow-up-right', straight: 'arrow-up' }; icon.setAttribute('data-lucide', icons[mod] || 'arrow-up'); lucide.createIcons(); }
-        function stopNavigation() { state.isNavigating = false; document.getElementById('nav-step-card').classList.remove('visible'); if (state.routeLine) state.map.removeLayer(state.routeLine); updateUI(); }
+        function cancelCollapseTimer() {
+            clearTimeout(collapseTimer);
+        }
 
-        window.onload = init;
+        function centerMap() {
+            if (state.lastPos && map) map.setCenter(state.lastPos);
+        }
+
+        function saveState() {
+            localStorage.setItem('sanpo_palette_state', JSON.stringify(state));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('sanpo_palette_state');
+            if (saved) state = { ...state, ...JSON.parse(saved) };
+        }
+
+        function handleGeoError(err) {
+            console.warn(`ERROR(${err.code}): ${err.message}`);
+            const status = document.getElementById('loading-status');
+            if (status) status.innerText = "位置情報の取得に失敗しました。設定を確認してください。";
+        }
+
+        window.onload = () => {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY || ''}&callback=init`;
+            script.async = true;
+            document.head.appendChild(script);
+            lucide.createIcons();
+        };
     </script>
 </body>
 </html>
