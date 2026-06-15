@@ -159,6 +159,74 @@
             50% { opacity: 1; }
             100% { transform: scale(1.5) translateY(-20px); opacity: 0; }
         }
+
+        /* 庭タブ */
+        .garden-grass {
+            background: linear-gradient(180deg, #87A96B 0%, #6B8F52 100%);
+            border-radius: 2rem;
+            min-height: 180px;
+            padding: 1.25rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.625rem;
+            align-content: flex-start;
+        }
+        .garden-item-card {
+            background: rgba(255,255,255,0.88);
+            border-radius: 0.875rem;
+            padding: 0.5rem 0.625rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 1.5rem;
+            line-height: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            min-width: 3.75rem;
+        }
+        .garden-item-card span { font-size: 0.6rem; font-weight: 700; opacity: 0.65; text-align: center; }
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.625rem;
+        }
+        .shop-item {
+            background: white;
+            border-radius: 1.25rem;
+            padding: 0.75rem 0.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 2px solid transparent;
+        }
+        .shop-item:active { transform: scale(0.95); }
+        .shop-item.owned { border-color: var(--secondary); }
+        .shop-item .item-emoji { font-size: 1.875rem; }
+        .shop-item .item-name { font-size: 0.625rem; font-weight: 700; text-align: center; line-height: 1.2; }
+        .shop-item .item-cost { font-size: 0.7rem; font-weight: 700; color: var(--secondary); }
+        .midnight-mode .shop-item { background: var(--navy-card); color: white; }
+        .midnight-mode .garden-item-card { background: rgba(255,255,255,0.15); color: white; }
+        /* トグルスイッチ */
+        .toggle-switch { position: relative; width: 52px; height: 28px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; inset: 0;
+            background: #ccc; border-radius: 28px;
+            cursor: pointer; transition: 0.3s;
+        }
+        .toggle-slider::before {
+            content: ''; position: absolute;
+            width: 20px; height: 20px;
+            left: 4px; bottom: 4px;
+            background: white; border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: var(--secondary); }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(24px); }
     </style>
 
     <script>
@@ -223,6 +291,10 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/5 font-bold text-sm">
+                <span>🪙</span>
+                <span id="points-count">0</span>
+            </div>
             <button onclick="getLocation()" class="p-3 rounded-full hover:bg-black/5 transition-colors">
                 <i data-lucide="refresh-cw" size="22" class="opacity-50"></i>
             </button>
@@ -323,7 +395,49 @@
             <div id="poi-list" class="space-y-4"></div>
         </section>
 
-        <!-- タブ: マイページ (称号 & 黒猫) -->
+        <!-- タブ: 庭 (Garden) -->
+        <section id="tab-garden" class="tab-content space-y-6">
+            <!-- マイガーデン -->
+            <div>
+                <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                    <span>🌿</span> マイガーデン
+                </h2>
+                <div class="garden-grass card-bg" id="garden-display">
+                    <p class="text-white/70 text-sm font-bold w-full text-center py-8 leading-relaxed" id="garden-empty-msg">まだアイテムがありません。<br>下のショップで購入しましょう！</p>
+                </div>
+            </div>
+
+            <!-- ショップ -->
+            <div class="p-6 rounded-[3rem] bg-white shadow-sm card-bg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold flex items-center gap-2">
+                        <span>🛒</span> ショップ
+                    </h3>
+                    <div class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/5 font-bold text-sm">
+                        <span>🪙</span>
+                        <span id="shop-points-count">0</span>
+                    </div>
+                </div>
+                <p class="text-xs opacity-50 mb-4">歩いて貯めたポイントで庭を飾ろう！</p>
+
+                <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">花 Flowers</p>
+                <div class="shop-grid" id="shop-grid-flowers"></div>
+
+                <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2 mt-5">樹木 Trees</p>
+                <div class="shop-grid" id="shop-grid-trees"></div>
+
+                <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2 mt-5">置物 Ornaments</p>
+                <div class="shop-grid" id="shop-grid-ornaments"></div>
+
+                <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2 mt-5">家具 Furniture</p>
+                <div class="shop-grid" id="shop-grid-furniture"></div>
+
+                <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2 mt-5">道具 Tools</p>
+                <div class="shop-grid" id="shop-grid-tools"></div>
+            </div>
+        </section>
+
+        <!-- タブ: マイページ (称号 & 黒猫 & 実績 & 設定) -->
         <section id="tab-trophy" class="tab-content space-y-8">
             <!-- 黒猫親密度カード -->
             <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-6">
@@ -356,33 +470,65 @@
                     <i data-lucide="sparkles" class="text-accent"></i>
                     季節の限定称号
                 </h3>
-                <div class="grid grid-cols-1 gap-4" id="seasonal-titles-list">
-                    <!-- 称号がここに並ぶ -->
+                <div class="grid grid-cols-1 gap-4" id="seasonal-titles-list"></div>
+            </div>
+
+            <!-- 全実績 -->
+            <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-6">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <i data-lucide="trophy" class="text-accent"></i>
+                    実績・アチーブメント
+                </h3>
+                <div class="grid grid-cols-1 gap-3" id="achievements-list"></div>
+            </div>
+
+            <!-- バックグラウンドモード設定 -->
+            <div class="p-8 rounded-[3rem] bg-white shadow-sm card-bg space-y-5">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <i data-lucide="settings" class="text-accent"></i>
+                    設定
+                </h3>
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 mr-4">
+                        <p class="font-bold">バックグラウンドモード</p>
+                        <p class="text-xs opacity-60 mt-1">画面ON維持・到着通知を有効化</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="bg-mode-toggle" onchange="toggleBgMode(this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
+                <p id="bg-mode-status" class="text-xs opacity-50"></p>
             </div>
         </section>
     </main>
 
     <!-- ボトムナビ -->
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 p-6 border-t bg-white/90 backdrop-blur-2xl z-[100] card-bg">
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 p-4 border-t bg-white/90 backdrop-blur-2xl z-[100] card-bg">
         <div class="max-w-2xl mx-auto flex justify-around items-center">
-            <button onclick="switchTab('planner')" class="nav-btn flex flex-col items-center gap-2 text-secondary nav-active transition-all" id="btn-planner">
-                <div class="w-14 h-10 rounded-2xl flex items-center justify-center bg-secondary/10" id="nav-icon-bg-planner">
-                    <i data-lucide="navigation" size="26"></i>
+            <button onclick="switchTab('planner')" class="nav-btn flex flex-col items-center gap-1.5 text-secondary nav-active transition-all" id="btn-planner">
+                <div class="w-12 h-9 rounded-2xl flex items-center justify-center bg-secondary/10" id="nav-icon-bg-planner">
+                    <i data-lucide="navigation" size="22"></i>
                 </div>
-                <span class="text-[11px] font-bold tracking-wider">プラン</span>
+                <span class="text-[10px] font-bold tracking-wider">プラン</span>
             </button>
-            <button onclick="switchTab('rally')" class="nav-btn flex flex-col items-center gap-2 opacity-40 transition-all" id="btn-rally">
-                <div class="w-14 h-10 rounded-2xl flex items-center justify-center" id="nav-icon-bg-rally">
-                    <i data-lucide="map-pin" size="26"></i>
+            <button onclick="switchTab('garden')" class="nav-btn flex flex-col items-center gap-1.5 opacity-40 transition-all" id="btn-garden">
+                <div class="w-12 h-9 rounded-2xl flex items-center justify-center" id="nav-icon-bg-garden">
+                    <span class="text-xl">🌿</span>
                 </div>
-                <span class="text-[11px] font-bold tracking-wider">ラリー</span>
+                <span class="text-[10px] font-bold tracking-wider">庭</span>
             </button>
-            <button onclick="switchTab('trophy')" class="nav-btn flex flex-col items-center gap-2 opacity-40 transition-all" id="btn-trophy">
-                <div class="w-14 h-10 rounded-2xl flex items-center justify-center" id="nav-icon-bg-trophy">
-                    <i data-lucide="cat" size="26"></i>
+            <button onclick="switchTab('rally')" class="nav-btn flex flex-col items-center gap-1.5 opacity-40 transition-all" id="btn-rally">
+                <div class="w-12 h-9 rounded-2xl flex items-center justify-center" id="nav-icon-bg-rally">
+                    <i data-lucide="map-pin" size="22"></i>
                 </div>
-                <span class="text-[11px] font-bold tracking-wider">マイページ</span>
+                <span class="text-[10px] font-bold tracking-wider">ラリー</span>
+            </button>
+            <button onclick="switchTab('trophy')" class="nav-btn flex flex-col items-center gap-1.5 opacity-40 transition-all" id="btn-trophy">
+                <div class="w-12 h-9 rounded-2xl flex items-center justify-center" id="nav-icon-bg-trophy">
+                    <i data-lucide="cat" size="22"></i>
+                </div>
+                <span class="text-[10px] font-bold tracking-wider">マイページ</span>
             </button>
         </div>
     </nav>
@@ -403,6 +549,16 @@
             stamps: JSON.parse(localStorage.getItem('sanpo-stamps') || '[]'),
             totalDistance: parseFloat(localStorage.getItem('sanpo-total-dist') || '0'),
             seasonalStats: JSON.parse(localStorage.getItem('sanpo-seasonal') || '{"spring":0,"summer":0,"autumn":0,"winter":0}'),
+            points: parseInt(localStorage.getItem('sanpo-points') || '0'),
+            gardenOwned: JSON.parse(localStorage.getItem('sanpo-garden') || '[]'),
+            completedRoutes: parseInt(localStorage.getItem('sanpo-completed-routes') || '0'),
+            midnightRouteCompleted: localStorage.getItem('sanpo-midnight-done') === 'true',
+            collapseRouteCompleted: localStorage.getItem('sanpo-collapse-done') === 'true',
+            lastOffTrackTime: 0,
+            wakeLockSentinel: null,
+            bgModeEnabled: localStorage.getItem('sanpo-bg-mode') === 'true',
+            speechQueue: [],
+            isSpeaking: false,
             map: null,
             routeLine: null,
             isNavigating: false,
@@ -425,6 +581,58 @@
 
         const CATEGORY_LABELS = { shrine: '神社・寺院', park: '公園', historic: '史跡', other: 'スポット' };
         const WALKING_SPEED_KMH = 4.5;
+
+        const GARDEN_ITEMS = [
+            { id: 'sakura',     emoji: '🌸', name: '桜',         cost: 100, category: 'flowers' },
+            { id: 'himawari',   emoji: '🌻', name: '向日葵',     cost: 80,  category: 'flowers' },
+            { id: 'bara',       emoji: '🌹', name: 'バラ',       cost: 120, category: 'flowers' },
+            { id: 'lavender',   emoji: '💜', name: 'ラベンダー', cost: 90,  category: 'flowers' },
+            { id: 'tulip',      emoji: '🌷', name: 'チューリップ',cost: 70, category: 'flowers' },
+            { id: 'kiku',       emoji: '🌼', name: '菊',         cost: 100, category: 'flowers' },
+            { id: 'asagao',     emoji: '🪻', name: '朝顔',       cost: 60,  category: 'flowers' },
+            { id: 'hasu',       emoji: '🪷', name: '蓮',         cost: 150, category: 'flowers' },
+            { id: 'take',       emoji: '🎍', name: '竹',         cost: 180, category: 'trees' },
+            { id: 'matsu',      emoji: '🌲', name: '松',         cost: 200, category: 'trees' },
+            { id: 'momiji',     emoji: '🍁', name: '紅葉',       cost: 130, category: 'trees' },
+            { id: 'yakuso',     emoji: '🌿', name: '薬草',       cost: 80,  category: 'trees' },
+            { id: 'torii',      emoji: '⛩️', name: '小鳥居',     cost: 300, category: 'ornaments' },
+            { id: 'toro',       emoji: '🏮', name: '石灯篭',     cost: 160, category: 'ornaments' },
+            { id: 'furin',      emoji: '🔔', name: '風鈴',       cost: 100, category: 'ornaments' },
+            { id: 'manekineko', emoji: '🐱', name: '招き猫',     cost: 200, category: 'ornaments' },
+            { id: 'tsubo',      emoji: '🫙', name: '陶器の壺',   cost: 120, category: 'ornaments' },
+            { id: 'chawan',     emoji: '🍵', name: '茶碗',       cost: 80,  category: 'ornaments' },
+            { id: 'tobiishi',   emoji: '🪨', name: '飛び石',     cost: 150, category: 'ornaments' },
+            { id: 'ishioki',    emoji: '🗿', name: '石の置物',   cost: 140, category: 'ornaments' },
+            { id: 'bench',      emoji: '🪑', name: '木製ベンチ', cost: 130, category: 'furniture' },
+            { id: 'mizubachi',  emoji: '🪣', name: '水鉢',       cost: 170, category: 'furniture' },
+            { id: 'funsui',     emoji: '⛲', name: '噴水',       cost: 250, category: 'furniture' },
+            { id: 'hidokei',    emoji: '🕰️', name: '日時計',     cost: 180, category: 'furniture' },
+            { id: 'azumaya',    emoji: '🏯', name: '東屋',       cost: 400, category: 'furniture' },
+            { id: 'joro',       emoji: '🚿', name: 'じょうろ',   cost: 50,  category: 'tools' },
+            { id: 'kuwa',       emoji: '⛏️', name: 'クワ',       cost: 40,  category: 'tools' },
+            { id: 'planter',    emoji: '🌱', name: 'プランター', cost: 70,  category: 'tools' },
+            { id: 'kadan',      emoji: '🌺', name: '花壇',       cost: 110, category: 'tools' },
+            { id: 'butterfly',  emoji: '🦋', name: '蝶の巣箱',  cost: 220, category: 'tools' },
+        ];
+
+        const ACHIEVEMENTS = [
+            { id: 'dist_1km',       icon: '👟', label: '初めの一歩',     desc: '累計1km歩く',            check: s => s.totalDistance >= 1 },
+            { id: 'dist_10km',      icon: '🏃', label: '街歩きの達人',   desc: '累計10km歩く',           check: s => s.totalDistance >= 10 },
+            { id: 'dist_50km',      icon: '🗺️', label: '遠くへ行こう',   desc: '累計50km歩く',           check: s => s.totalDistance >= 50 },
+            { id: 'dist_100km',     icon: '🏆', label: '百里の旅人',     desc: '累計100km歩く',          check: s => s.totalDistance >= 100 },
+            { id: 'poi_5',          icon: '📍', label: 'スポット探偵',   desc: '5スポット訪問',          check: s => s.stamps.length >= 5 },
+            { id: 'poi_20',         icon: '🗺️', label: '地域の案内人',   desc: '20スポット訪問',         check: s => s.stamps.length >= 20 },
+            { id: 'poi_50',         icon: '🌟', label: '伝説の散歩師',   desc: '50スポット訪問',         check: s => s.stamps.length >= 50 },
+            { id: 'route_1',        icon: '🎌', label: '初回完走',       desc: 'ルートを1回完走',        check: s => s.completedRoutes >= 1 },
+            { id: 'route_5',        icon: '🎖️', label: '歩き続ける者',   desc: 'ルートを5回完走',        check: s => s.completedRoutes >= 5 },
+            { id: 'cat_2',          icon: '🐈', label: '猫に好かれた',   desc: '黒猫レベル2到達',        check: s => getCatLevel() >= 2 },
+            { id: 'cat_3',          icon: '🐈‍⬛', label: '旅の相棒',       desc: '黒猫レベル3到達',        check: s => getCatLevel() >= 3 },
+            { id: 'midnight_route', icon: '🌙', label: '夜の散歩者',     desc: '深夜モードでルート完走', check: s => s.midnightRouteCompleted },
+            { id: 'collapse_route', icon: '💀', label: '廃墟の探索者',   desc: '崩壊モードでルート完走', check: s => s.collapseRouteCompleted },
+            { id: 'garden_1',       icon: '🌱', label: 'はじめての庭',   desc: '庭に1アイテム購入',      check: s => s.gardenOwned.length >= 1 },
+            { id: 'garden_10',      icon: '🌳', label: '庭の主',         desc: '庭に10アイテム購入',     check: s => s.gardenOwned.length >= 10 },
+            { id: 'garden_25',      icon: '🏡', label: '楽園を作る者',   desc: '庭に25アイテム購入',     check: s => s.gardenOwned.length >= 25 },
+        ];
 
         // --- Initialization ---
         function init() {
@@ -450,6 +658,33 @@
             
             const retryBtn = document.getElementById('retry-btn');
             if (retryBtn) retryBtn.onclick = getLocation;
+
+            // PWA Manifest (inline Blob)
+            const manifestData = {
+                name: 'さんぽパレット', short_name: 'SanpoPalette',
+                start_url: '.', display: 'standalone',
+                background_color: '#FDFBF7', theme_color: '#FFB7C5',
+                icons: [{ src: 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f43e.png', sizes: '72x72', type: 'image/png' }]
+            };
+            const manifestBlob = new Blob([JSON.stringify(manifestData)], { type: 'application/manifest+json' });
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = URL.createObjectURL(manifestBlob);
+            document.head.appendChild(manifestLink);
+
+            // Restore background mode
+            if (state.bgModeEnabled) {
+                const bgToggle = document.getElementById('bg-mode-toggle');
+                if (bgToggle) bgToggle.checked = true;
+                requestWakeLock();
+            }
+
+            // Re-acquire wake lock when page becomes visible
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && state.bgModeEnabled && !state.wakeLockSentinel) {
+                    requestWakeLock();
+                }
+            });
         }
 
         function applySeasonalUI() {
@@ -507,6 +742,8 @@
                         localStorage.setItem('sanpo-total-dist', state.totalDistance.toFixed(3));
                         state.lastLocation = current;
                         state.lastActivity = Date.now();
+                        const pointsEarned = Math.floor(d * 1000 / 10);
+                        if (pointsEarned > 0) updatePoints(pointsEarned);
                     }
                 } else {
                     state.lastLocation = current;
@@ -670,38 +907,53 @@
             const nextStep = state.currentRouteSteps[0];
             const stepCoord = { lat: nextStep.maneuver.location[1], lng: nextStep.maneuver.location[0] };
             const dist = Math.round(getDistance(state.userLocation.lat, state.userLocation.lng, stepCoord.lat, stepCoord.lng) * 1000);
+
             if (dist > 150 && state.currentRouteSteps.length > 0) {
-                speak("ルートから外れました。再検索しています。");
-                fetchNextLeg();
+                const now = Date.now();
+                if (now - state.lastOffTrackTime > 10000) {
+                    state.lastOffTrackTime = now;
+                    speak("ルートから外れました。再検索しています。");
+                    fetchNextLeg();
+                }
                 return;
             }
+
             const distEl = document.getElementById('nav-dist');
             if (distEl) distEl.innerText = `${dist}m`;
-            let instruction = nextStep.maneuver.type === 'arrive' ? "まもなく目的地です" : `${nextStep.name || '道'}を${translateManeuver(nextStep.maneuver.modifier)}`;
+
+            const isArriving = nextStep.maneuver.type === 'arrive';
+            const instruction = isArriving ? '目的地' : `${nextStep.name || '道'}を${translateManeuver(nextStep.maneuver.modifier)}`;
             const instEl = document.getElementById('nav-instruction');
-            if (instEl) instEl.innerText = instruction;
+            if (instEl) instEl.innerText = isArriving ? 'まもなく目的地です' : instruction;
+
             updateNavIcon(nextStep.maneuver.modifier);
             const stepId = nextStep.maneuver.location.toString();
             if (dist < 15 && state.lastAnnouncedStep !== stepId) {
                 speak(`まもなく${instruction}です！`);
                 state.lastAnnouncedStep = stepId;
                 state.currentRouteSteps.shift();
-                if (nextStep.maneuver.type === 'arrive') handleArrive();
+                if (isArriving) handleArrive();
             }
         }
 
         async function handleArrive() {
             const arrivedPoi = state.suggestedRoute[state.currentStepIndex];
-            speak(`${arrivedPoi.name}に到着しました！`);
-            
-            if (getCatLevel() >= 2) speak("ニャー！");
 
             if (!arrivedPoi.isGoal && !state.stamps.includes(arrivedPoi.id)) {
-                toggleStamp(arrivedPoi.id);
+                state.stamps.push(arrivedPoi.id);
+                localStorage.setItem('sanpo-stamps', JSON.stringify(state.stamps));
                 const month = new Date().getMonth();
                 const season = SEASONS.find(s => s.months.includes(month));
                 state.seasonalStats[season.id]++;
                 localStorage.setItem('sanpo-seasonal', JSON.stringify(state.seasonalStats));
+                updatePoints(20);
+            }
+
+            speak(`${arrivedPoi.name}に到着しました！`);
+            if (getCatLevel() >= 2) speak("ニャー！");
+
+            if (state.bgModeEnabled && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification(`${arrivedPoi.name}に到着！`, { body: '次のスポットへ向かいましょう' });
             }
 
             if (state.currentStepIndex < state.suggestedRoute.length - 1) {
@@ -712,6 +964,8 @@
                 speak("お疲れ様でした！スタート地点に戻りました。");
                 stopNavigation();
             }
+
+            updateUI();
         }
 
         function toggleCustomPoi(id) {
@@ -740,6 +994,19 @@
         }
 
         function stopNavigation() {
+            if (state.isNavigating && state.currentStepIndex >= state.suggestedRoute.length - 1) {
+                state.completedRoutes++;
+                localStorage.setItem('sanpo-completed-routes', state.completedRoutes);
+                updatePoints(50);
+                if (state.isMidnight) {
+                    state.midnightRouteCompleted = true;
+                    localStorage.setItem('sanpo-midnight-done', 'true');
+                }
+                if (state.isCollapse) {
+                    state.collapseRouteCompleted = true;
+                    localStorage.setItem('sanpo-collapse-done', 'true');
+                }
+            }
             state.isNavigating = false;
             const card = document.getElementById('nav-step-card');
             if (card) card.classList.remove('visible');
@@ -913,6 +1180,23 @@
                 });
             }
 
+            // Points display
+            const pointsEl = document.getElementById('points-count');
+            if (pointsEl) pointsEl.innerText = state.points;
+            const shopPointsEl = document.getElementById('shop-points-count');
+            if (shopPointsEl) shopPointsEl.innerText = state.points;
+
+            // Garden tab
+            renderGarden();
+            renderShop();
+
+            // Achievements
+            renderAchievements();
+
+            // Settings toggle
+            const bgToggle = document.getElementById('bg-mode-toggle');
+            if (bgToggle) bgToggle.checked = state.bgModeEnabled;
+
             lucide.createIcons();
         }
 
@@ -972,10 +1256,150 @@
             updateUI();
         }
 
+        function updatePoints(delta) {
+            state.points += delta;
+            if (state.points < 0) state.points = 0;
+            localStorage.setItem('sanpo-points', state.points);
+            const el = document.getElementById('points-count');
+            if (el) el.innerText = state.points;
+            const shopEl = document.getElementById('shop-points-count');
+            if (shopEl) shopEl.innerText = state.points;
+        }
+
+        function buyGardenItem(itemId) {
+            const item = GARDEN_ITEMS.find(i => i.id === itemId);
+            if (!item || state.gardenOwned.includes(itemId)) return;
+            if (state.points < item.cost) {
+                alert(`ポイントが足りません。\n必要: ${item.cost}pt　所持: ${state.points}pt`);
+                return;
+            }
+            updatePoints(-item.cost);
+            state.gardenOwned.push(itemId);
+            localStorage.setItem('sanpo-garden', JSON.stringify(state.gardenOwned));
+            updateUI();
+        }
+
+        function renderGarden() {
+            const display = document.getElementById('garden-display');
+            const emptyMsg = document.getElementById('garden-empty-msg');
+            if (!display) return;
+            Array.from(display.querySelectorAll('.garden-item-card')).forEach(el => el.remove());
+            if (state.gardenOwned.length === 0) {
+                if (emptyMsg) emptyMsg.style.display = 'block';
+                return;
+            }
+            if (emptyMsg) emptyMsg.style.display = 'none';
+            state.gardenOwned.forEach(id => {
+                const item = GARDEN_ITEMS.find(i => i.id === id);
+                if (!item) return;
+                const card = document.createElement('div');
+                card.className = 'garden-item-card';
+                card.innerHTML = `${item.emoji}<span>${item.name}</span>`;
+                display.appendChild(card);
+            });
+        }
+
+        function renderShop() {
+            const gridIds = { flowers: 'shop-grid-flowers', trees: 'shop-grid-trees', ornaments: 'shop-grid-ornaments', furniture: 'shop-grid-furniture', tools: 'shop-grid-tools' };
+            Object.entries(gridIds).forEach(([cat, gridId]) => {
+                const grid = document.getElementById(gridId);
+                if (!grid) return;
+                grid.innerHTML = '';
+                GARDEN_ITEMS.filter(i => i.category === cat).forEach(item => {
+                    const owned = state.gardenOwned.includes(item.id);
+                    const canAfford = state.points >= item.cost;
+                    const btn = document.createElement('div');
+                    btn.className = `shop-item${owned ? ' owned' : ''}`;
+                    btn.style.opacity = (owned || canAfford) ? '1' : '0.5';
+                    btn.innerHTML = `<div class="item-emoji">${item.emoji}</div><div class="item-name">${item.name}</div><div class="item-cost">${owned ? '✓ 購入済' : `🪙 ${item.cost}`}</div>`;
+                    if (!owned) btn.onclick = () => buyGardenItem(item.id);
+                    grid.appendChild(btn);
+                });
+            });
+        }
+
+        function renderAchievements() {
+            const list = document.getElementById('achievements-list');
+            if (!list) return;
+            list.innerHTML = '';
+            ACHIEVEMENTS.forEach(ach => {
+                const unlocked = ach.check(state);
+                const div = document.createElement('div');
+                div.className = `p-4 rounded-2xl flex items-center gap-4 ${unlocked ? 'bg-accent/10 border-2 border-accent' : 'bg-gray-100 opacity-40'}`;
+                div.innerHTML = `
+                    <div class="text-2xl w-10 text-center">${ach.icon}</div>
+                    <div class="flex-1">
+                        <p class="font-bold text-sm">${ach.label}</p>
+                        <p class="text-xs opacity-60">${ach.desc}</p>
+                    </div>
+                    <div class="${unlocked ? 'text-accent' : 'opacity-30'}">
+                        <i data-lucide="${unlocked ? 'check-circle' : 'lock'}" size="20"></i>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function requestWakeLock() {
+            if (!('wakeLock' in navigator)) {
+                const el = document.getElementById('bg-mode-status');
+                if (el) el.innerText = 'このブラウザはWake Lockに対応していません。';
+                return;
+            }
+            try {
+                state.wakeLockSentinel = await navigator.wakeLock.request('screen');
+                state.wakeLockSentinel.addEventListener('release', () => { state.wakeLockSentinel = null; });
+                const el = document.getElementById('bg-mode-status');
+                if (el) el.innerText = '画面ONを維持しています。';
+            } catch (e) {
+                const el = document.getElementById('bg-mode-status');
+                if (el) el.innerText = `Wake Lock エラー: ${e.message}`;
+            }
+        }
+
+        function releaseWakeLock() {
+            if (state.wakeLockSentinel) {
+                state.wakeLockSentinel.release();
+                state.wakeLockSentinel = null;
+            }
+            const el = document.getElementById('bg-mode-status');
+            if (el) el.innerText = 'バックグラウンドモードは無効です。';
+        }
+
+        async function toggleBgMode(enabled) {
+            state.bgModeEnabled = enabled;
+            localStorage.setItem('sanpo-bg-mode', enabled);
+            if (enabled) {
+                await requestWakeLock();
+                if ('Notification' in window) {
+                    const perm = await Notification.requestPermission();
+                    const el = document.getElementById('bg-mode-status');
+                    if (el) {
+                        const wlStatus = state.wakeLockSentinel ? '画面ON維持中。' : '';
+                        el.innerText = wlStatus + (perm === 'granted' ? ' 到着通知が有効です。' : ' 通知は拒否されました。');
+                    }
+                }
+            } else {
+                releaseWakeLock();
+            }
+        }
+
         function speak(text) {
+            state.speechQueue.push(text);
+            if (!state.isSpeaking) processQueue();
+        }
+
+        function processQueue() {
+            if (state.speechQueue.length === 0) {
+                state.isSpeaking = false;
+                return;
+            }
+            state.isSpeaking = true;
+            const text = state.speechQueue.shift();
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'ja-JP';
-            window.speechSynthesis.cancel();
+            u.onend = () => processQueue();
+            u.onerror = () => { state.isSpeaking = false; processQueue(); };
             window.speechSynthesis.speak(u);
         }
 
